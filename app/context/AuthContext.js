@@ -39,13 +39,9 @@ export function AuthProvider({ children }) {
       // Enviar registro a Google Sheets
       try {
         const now = new Date()
-        const fecha = now.toLocaleDateString('es-ES') + ' ' + now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-        fetch('https://script.google.com/macros/s/AKfycbxHWVrqy-dVJlagY-ACvVIP3w2yngvr_WtiF14c8EUqKWIDQPQjSgD3F0JYckCq/exec', {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fecha, nombre: name, email }),
-        })
+        const fecha = encodeURIComponent(now.toLocaleDateString('es-ES') + ' ' + now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }))
+        const url = `https://script.google.com/macros/s/AKfycbxHWVrqy-dVJlagY-ACvVIP3w2yngvr_WtiF14c8EUqKWIDQPQjSgD3F0JYckCqyPYO/exec?fecha=${fecha}&nombre=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}`
+        fetch(url, { mode: 'no-cors' })
       } catch {}
 
       return { ok: true }
