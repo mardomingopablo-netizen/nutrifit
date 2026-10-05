@@ -1,10 +1,10 @@
 'use client'
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { Leaf, Mail, Lock, User, ArrowRight, Eye, EyeOff, UserCircle } from 'lucide-react'
+import { Leaf, Mail, Lock, User, ArrowRight, Eye, EyeOff } from 'lucide-react'
 
 export default function AuthPage() {
-  const { login, register, loginAsGuest } = useAuth()
+  const { login, register } = useAuth()
   const [mode, setMode] = useState('login') // login, register
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -174,23 +174,6 @@ export default function AuthPage() {
               )}
             </button>
           </form>
-
-          {/* Guest session */}
-          <div className="mt-5">
-            <div className="relative flex items-center justify-center my-4">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200 dark:border-gray-700" />
-              </div>
-              <span className="relative bg-white dark:bg-gray-900 px-3 text-xs text-gray-400">o</span>
-            </div>
-            <button
-              onClick={loginAsGuest}
-              className="w-full py-3 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 border border-gray-200 dark:border-gray-700"
-            >
-              <UserCircle size={18} />
-              Entrar como invitado
-            </button>
-          </div>
 
           <div className="mt-5 text-center">
             <p className="text-sm text-gray-500 dark:text-gray-400">
