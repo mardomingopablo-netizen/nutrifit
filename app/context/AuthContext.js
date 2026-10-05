@@ -35,6 +35,19 @@ export function AuthProvider({ children }) {
       const session = { id: newUser.id, name: newUser.name, email: newUser.email }
       localStorage.setItem('nf_session', JSON.stringify(session))
       setUser(session)
+
+      // Enviar registro a Google Sheets
+      try {
+        const now = new Date()
+        const fecha = now.toLocaleDateString('es-ES') + ' ' + now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+        fetch('https://script.google.com/macros/s/AKfycbxHWVrqy-dVJlagY-ACvVIP3w2yngvr_WtiF14c8EUqKWIDQPQjSgD3F0JYckCq/exec', {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fecha, nombre: name, email }),
+        })
+      } catch {}
+
       return { ok: true }
     } catch {
       return { ok: false, error: 'Error al crear la cuenta' }
