@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
 
@@ -164,6 +165,6 @@ export async function POST(request) {
 
     return NextResponse.json({ items, totals })
   } catch (err) {
-    return NextResponse.json({ error: 'Error de conexión con la IA' }, { status: 500 })
+    return NextResponse.json({ error: 'Conexión IA: ' + (err?.message || String(err)) }, { status: 500 })
   }
 }
