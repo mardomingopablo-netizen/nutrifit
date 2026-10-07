@@ -5,7 +5,13 @@ import { MEALS, MEAL_LABELS, MEAL_ICONS } from '../data/foods'
 import FoodSearch from '../components/FoodSearch'
 import CalorieBar from '../components/CalorieBar'
 import MacroRing from '../components/MacroRing'
-import { Plus, Trash2, ChevronDown, ChevronUp, Minus, Plus as PlusIcon } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronUp, Minus, Plus as PlusIcon, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react'
+
+function shiftDate(key, days) {
+  const d = new Date(key + 'T00:00:00')
+  d.setDate(d.getDate() + days)
+  return d.toISOString().split('T')[0]
+}
 
 export default function TrackerPage() {
   const {
@@ -16,14 +22,22 @@ export default function TrackerPage() {
   } = useApp()
 
   const [addingTo, setAddingTo] = useState(null) // meal
+  const [selectedDate, setSelectedDate] = useState(() => todayKey())
   const [expandedMeals, setExpandedMeals] = useState({
     breakfast: true, lunch: true, dinner: true, snack: true,
   })
 
-  const day = todayKey()
+  const today = todayKey()
+  const day = selectedDate
+  const isToday = day === today
+  const isFuture = day >= shiftDate(today, 1)
   const totals = getDayTotals(day)
 
-  const todayLabel = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
+  // Etiqueta amable de la fecha seleccionada
+  const dObj = new Date(day + 'T00:00:00')
+  let dateLabel = dObj.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
+  if (isToday) dateLabel = 'Hoy · ' + dateLabel
+  else if (day === shiftDate(today, -1)) dateLabel = 'Ayer · ' + dateLabel
 
   function toggleMeal(meal) {
     setExpandedMeals(prev => ({ ...prev, [meal]: !prev[meal] }))
@@ -31,15 +45,43 @@ export default function TrackerPage() {
 
   function handleAddFood(food) {
     if (addingTo) {
-      addFoodToTracker(addingTo, food)
+      addFoodToTracker(addingTo, food, selectedDate)
     }
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tracker de hoy</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 capitalize">{todayLabel}</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tracker</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Registra lo que comes cada día</p>
+      </div>
+
+      {/* Date navigation */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setSelectedDate(shiftDate(day, -1))}
+          className="p-2.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-emerald-300 dark:hover:border-emerald-500/30 transition-all"
+        >
+          <ChevronLeft size={18} className="text-gray-600 dark:text-gray-400" />
+        </button>
+        <div className="flex-1 text-center bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl py-2.5 px-3">
+          <p className="text-sm font-semibold text-gray-900 dark:text-white capitalize">{dateLabel}</p>
+        </div>
+        <button
+          onClick={() => setSelectedDate(shiftDate(day, 1))}
+          disabled={isFuture || isToday}
+          className="p-2.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-emerald-300 dark:hover:border-emerald-500/30 transition-all disabled:opacity-30 disabled:hover:border-gray-200"
+        >
+          <ChevronRight size={18} className="text-gray-600 dark:text-gray-400" />
+        </button>
+        {!isToday && (
+          <button
+            onClick={() => setSelectedDate(today)}
+            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition-all"
+          >
+            <CalendarDays size={16} /> Hoy
+          </button>
+        )}
       </div>
 
       {/* Day summary */}
@@ -113,7 +155,7 @@ export default function TrackerPage() {
                         {/* Editable grams con botones -/+ */}
                         <div className="flex items-center gap-1 shrink-0">
                           <button
-                            onClick={() => updateFoodGrams(meal, food.id, Math.max(5, Math.round(g * 0.9 / 5) * 5))}
+                            onClick={() => updateFoodGrams(meal, food.id, Math.max(5, Math.round(g * 0.9 / 5) * 5), selectedDate)}
                             className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
                             title="Menos cantidad"
                           >
@@ -123,11 +165,11 @@ export default function TrackerPage() {
                             type="number"
                             value={g}
                             min={1}
-                            onChange={e => updateFoodGrams(meal, food.id, e.target.value)}
+                            onChange={e => updateFoodGrams(meal, food.id, e.target.value, selectedDate)}
                             className="w-14 px-1 py-1.5 text-xs text-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white border-none outline-none"
                           />
                           <button
-                            onClick={() => updateFoodGrams(meal, food.id, Math.max(5, Math.round(g * 1.1 / 5) * 5))}
+                            onClick={() => updateFoodGrams(meal, food.id, Math.max(5, Math.round(g * 1.1 / 5) * 5), selectedDate)}
                             className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
                             title="Más cantidad"
                           >
@@ -135,7 +177,7 @@ export default function TrackerPage() {
                           </button>
                         </div>
                         <button
-                          onClick={() => removeFoodFromTracker(meal, food.id)}
+                          onClick={() => removeFoodFromTracker(meal, food.id, selectedDate)}
                           className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all shrink-0"
                         >
                           <Trash2 size={14} />

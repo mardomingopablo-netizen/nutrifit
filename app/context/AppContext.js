@@ -220,9 +220,11 @@ export function AppProvider({ children }) {
     } catch {}
   }, [hydrated, userId, profile, tracker, weekPlan, weightLog, recipes, supplements, mySupplements, streakData, unlockedAchievements, photoEstimates, profileHistory, exerciseHistory])
 
-  // ─── TRACKER (por fecha, se renueva cada día) ───
-  const addFoodToTracker = useCallback((meal, food) => {
-    const dk = todayKey()
+  // ─── TRACKER (por fecha) ───
+  // Las funciones aceptan una fecha (por defecto hoy) para poder consultar y
+  // editar también días pasados.
+  const addFoodToTracker = useCallback((meal, food, dateKey) => {
+    const dk = dateKey || todayKey()
     setTracker(prev => ({
       ...prev,
       [dk]: {
@@ -230,11 +232,12 @@ export function AppProvider({ children }) {
         [meal]: [...(prev[dk]?.[meal] || []), { ...food, id: Date.now() + Math.random() }],
       },
     }))
-    updateStreak()
+    // La racha solo cuenta para hoy.
+    if (dk === todayKey()) updateStreak()
   }, [])
 
-  const removeFoodFromTracker = useCallback((meal, foodId) => {
-    const dk = todayKey()
+  const removeFoodFromTracker = useCallback((meal, foodId, dateKey) => {
+    const dk = dateKey || todayKey()
     setTracker(prev => ({
       ...prev,
       [dk]: {
@@ -244,9 +247,9 @@ export function AppProvider({ children }) {
     }))
   }, [])
 
-  // Cambiar los gramos de un alimento ya registrado hoy.
-  const updateFoodGrams = useCallback((meal, foodId, grams) => {
-    const dk = todayKey()
+  // Cambiar los gramos de un alimento ya registrado.
+  const updateFoodGrams = useCallback((meal, foodId, grams, dateKey) => {
+    const dk = dateKey || todayKey()
     const g = Math.max(1, Math.round(Number(grams) || 0))
     setTracker(prev => ({
       ...prev,
