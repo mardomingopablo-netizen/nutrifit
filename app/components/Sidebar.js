@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import {
   LayoutDashboard, CalendarDays, ClipboardList, Calculator,
-  Apple, TrendingUp, Menu, X, Leaf,
+  Apple, TrendingUp, Menu, X,
   ChefHat, Pill, Sparkles, Flame, Dumbbell
 } from 'lucide-react'
 
@@ -50,9 +50,7 @@ export default function Sidebar() {
       `}>
         {/* Logo */}
         <div className="p-6 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-            <Leaf size={22} className="text-white" />
-          </div>
+          <img src="/logo.png" alt="NutriFit" className="w-10 h-10 rounded-xl object-cover shadow-lg shadow-emerald-500/10" />
           <div>
             <h1 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">NutriFit</h1>
             <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium tracking-wide">PRODUCTO SALUDABLE</p>

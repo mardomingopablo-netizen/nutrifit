@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { Leaf, Mail, Lock, User, ArrowRight, Eye, EyeOff } from 'lucide-react'
+import { Mail, Lock, User, ArrowRight, Eye, EyeOff } from 'lucide-react'
 
 export default function AuthPage() {
   const { login, register } = useAuth()
@@ -62,9 +62,7 @@ export default function AuthPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-xl shadow-emerald-500/20 mx-auto mb-4">
-            <Leaf size={32} className="text-white" />
-          </div>
+          <img src="/logo.png" alt="NutriFit" className="w-20 h-20 rounded-2xl object-cover shadow-xl shadow-emerald-500/10 mx-auto mb-4" />
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">NutriFit</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Tu plan nutricional inteligente</p>
         </div>
