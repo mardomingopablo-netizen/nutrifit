@@ -4,7 +4,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest'
+const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite'
 
 const SYSTEM_PROMPT = `Eres un nutricionista experto que analiza fotos de comida con máxima precisión, al nivel de las mejores apps de nutrición.
 
