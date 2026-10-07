@@ -1,11 +1,11 @@
 'use client'
 import { useState, useRef } from 'react'
 import { useApp } from '../context/AppContext'
-import { DAYS, MEALS, MEAL_LABELS } from '../data/foods'
+import { MEALS, MEAL_LABELS } from '../data/foods'
 import { Camera, Upload, Sparkles, Trash2, Utensils, X, Image as ImageIcon, AlertCircle } from 'lucide-react'
 
 export default function PhotoPage() {
-  const { addFoodToTracker, addPhotoEstimate, photoEstimates, currentDay } = useApp()
+  const { addFoodToTracker, addPhotoEstimate, photoEstimates } = useApp()
   const [description, setDescription] = useState('')
   const [photoPreview, setPhotoPreview] = useState(null)
   const [photoForApi, setPhotoForApi] = useState(null)
@@ -92,12 +92,11 @@ export default function PhotoPage() {
 
   function handleAddToTracker() {
     if (!estimation) return
-    const day = DAYS[currentDay]
     estimation.items.forEach(item => {
       const grams = item.grams || 100
       const factor = grams > 0 ? 100 / grams : 1
       // Store per-100g values so the tracker reproduces the estimated totals
-      addFoodToTracker(day, addMeal, {
+      addFoodToTracker(addMeal, {
         name: item.name + ' (IA)',
         cal: Math.round(item.cal * factor),
         protein: Math.round(item.protein * factor * 10) / 10,

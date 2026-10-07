@@ -1,14 +1,13 @@
 'use client'
 import { useState, useMemo } from 'react'
 import { useApp } from '../context/AppContext'
-import { DAYS, DAYS_SHORT, MEALS, MEAL_LABELS } from '../data/foods'
 import { TrendingUp, Scale, Target, Award, Plus, Trash2, User, Download } from 'lucide-react'
 
 const MACRO_COLORS = { protein: '#10b981', carbs: '#3b82f6', fat: '#f59e0b' }
 
 export default function ProgressPage() {
   const {
-    getDayTotals, getWeekTotals, targetCalories, targetMacros,
+    getDayTotals, getWeekTotals, getRangeTotals, targetCalories, targetMacros,
     profile, weightLog, addWeight, removeWeight, tracker,
     profileHistory, exerciseHistory,
   } = useApp()
@@ -47,8 +46,8 @@ export default function ProgressPage() {
   }, [weightLog, profile.goal])
 
   const weekData = getWeekTotals()
-  const weekCalData = weekData.map((d, i) => ({
-    day: DAYS_SHORT[i],
+  const weekCalData = weekData.map((d) => ({
+    day: d.label,
     cal: d.cal,
     target: targetCalories,
   }))
@@ -130,6 +129,11 @@ export default function ProgressPage() {
     const monthWeights = [...weightLog].filter(w => new Date(w.date).getTime() >= cutoff).sort((a, b) => new Date(a.date) - new Date(b.date))
     const monthProfiles = [...profileHistory].filter(p => new Date(p.date).getTime() >= cutoff)
     const monthExercise = [...exerciseHistory].filter(e => new Date(e.date).getTime() >= cutoff)
+    // Nutrición real de los últimos 30 días (tracker por fecha)
+    const monthNutrition = getRangeTotals(30)
+    const loggedDaysMonth = monthNutrition.filter(d => d.cal > 0)
+    const monthAvgCal = loggedDaysMonth.length ? Math.round(loggedDaysMonth.reduce((s, d) => s + d.cal, 0) / loggedDaysMonth.length) : 0
+    const monthAvgProt = loggedDaysMonth.length ? Math.round(loggedDaysMonth.reduce((s, d) => s + d.protein, 0) / loggedDaysMonth.length) : 0
 
     let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>NutriFit - Informe ${periodLabel}</title>
     <style>
@@ -204,13 +208,20 @@ export default function ProgressPage() {
         html += `</tbody></table>`
       }
 
-      html += `<h2>Resumen de la última semana</h2>`
+      html += `<h2>Nutrición del mes (últimos 30 días)</h2>`
       html += `<div class="profile-info">
-        <div class="profile-item">Calorías media: <span>${Math.round(avgCal)} kcal</span></div>
-        <div class="profile-item">Días registrados: <span>${daysLogged}/7</span></div>
-        <div class="profile-item">Cumplimiento: <span>${compliancePct}%</span></div>
-        <div class="profile-item">Proteína media: <span>${Math.round(avgProtein)}g</span></div>
+        <div class="profile-item">Calorías media/día: <span>${monthAvgCal || '—'} kcal</span></div>
+        <div class="profile-item">Días registrados: <span>${loggedDaysMonth.length}/30</span></div>
+        <div class="profile-item">Proteína media/día: <span>${monthAvgProt || '—'}g</span></div>
+        <div class="profile-item">Objetivo calórico: <span>${targetCalories} kcal</span></div>
       </div>`
+      if (loggedDaysMonth.length > 0) {
+        html += `<table><thead><tr><th>Día</th><th>Calorías</th><th>Proteína</th><th>Carbos</th><th>Grasa</th></tr></thead><tbody>`
+        loggedDaysMonth.forEach(d => {
+          html += `<tr><td>${d.label} ${new Date(d.date + 'T00:00:00').getDate()}</td><td>${d.cal}</td><td class="text-green">${d.protein}g</td><td class="text-blue">${d.carbs}g</td><td class="text-amber">${d.fat}g</td></tr>`
+        })
+        html += `</tbody></table>`
+      }
     } else {
       // ─── INFORME SEMANAL: foco en la nutrición de la semana ───
       html += `<div class="stats">
@@ -230,10 +241,10 @@ export default function ProgressPage() {
 
       html += `<h2>Desglose por día</h2>`
       html += `<table><thead><tr><th>Día</th><th>Calorías</th><th>Proteína</th><th>Carbos</th><th>Grasa</th><th>Estado</th></tr></thead><tbody>`
-      weekData.forEach((d, i) => {
+      weekData.forEach((d) => {
         const ok = d.cal > 0 && d.cal <= targetCalories * 1.1
         html += `<tr>
-          <td>${DAYS[i]}</td>
+          <td>${d.label} ${new Date(d.date + 'T00:00:00').getDate()}</td>
           <td>${d.cal || '-'}</td>
           <td class="text-green">${d.protein || '-'}g</td>
           <td class="text-blue">${d.carbs || '-'}g</td>
@@ -389,11 +400,11 @@ export default function ProgressPage() {
           <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6">
             <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Macros por día</h3>
             <div className="space-y-3">
-              {weekData.map((d, i) => {
+              {weekData.map((d) => {
                 const maxMacro = Math.max(d.protein, d.carbs, d.fat, targetMacros.protein, targetMacros.carbs, targetMacros.fat) || 1
                 return (
-                  <div key={DAYS_SHORT[i]}>
-                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{DAYS_SHORT[i]}</p>
+                  <div key={d.key}>
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{d.label}</p>
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] w-6 text-emerald-500 font-medium">P</span>
@@ -777,11 +788,12 @@ export default function ProgressPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {weekData.map((d, i) => {
+                  {weekData.map((d) => {
                     const ok = d.cal > 0 && d.cal <= targetCalories * 1.1
+                    const dLabel = `${d.label} ${new Date(d.date + 'T00:00:00').getDate()}`
                     return (
-                      <tr key={d.day} className="border-b border-gray-50 dark:border-gray-800">
-                        <td className="py-3 font-medium text-gray-900 dark:text-white">{DAYS[i]}</td>
+                      <tr key={d.key} className="border-b border-gray-50 dark:border-gray-800">
+                        <td className="py-3 font-medium text-gray-900 dark:text-white">{dLabel}</td>
                         <td className="text-right py-3 text-gray-900 dark:text-white">{d.cal || '-'}</td>
                         <td className="text-right py-3 text-emerald-600 dark:text-emerald-400">{d.protein || '-'}g</td>
                         <td className="text-right py-3 text-blue-600 dark:text-blue-400">{d.carbs || '-'}g</td>

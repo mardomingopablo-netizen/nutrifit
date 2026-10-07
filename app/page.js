@@ -1,6 +1,6 @@
 'use client'
 import { useApp } from './context/AppContext'
-import { DAYS, DAYS_SHORT, MEALS, MEAL_LABELS, MEAL_ICONS } from './data/foods'
+import { MEALS, MEAL_LABELS, MEAL_ICONS } from './data/foods'
 import MacroRing from './components/MacroRing'
 import CalorieBar from './components/CalorieBar'
 import Link from 'next/link'
@@ -17,16 +17,15 @@ const GOAL_CONFIG = {
 }
 
 export default function Dashboard() {
-  const { profile, targetCalories, targetMacros, getDayTotals, currentDay, tracker, getAlerts, streakData, unlockedAchievements } = useApp()
-  const day = DAYS[currentDay]
+  const { profile, targetCalories, targetMacros, getDayTotals, getWeekTotals, tracker, getAlerts, streakData, unlockedAchievements, todayKey } = useApp()
+  const day = todayKey()
   const totals = getDayTotals(day)
   const goalCfg = GOAL_CONFIG[profile.goal]
   const GoalIcon = goalCfg.icon
+  const todayLabel = new Date().toLocaleDateString('es-ES', { weekday: 'long' })
 
-  const weekData = DAYS.map((d, i) => {
-    const t = getDayTotals(d)
-    return { day: DAYS_SHORT[i], cal: t.cal, target: targetCalories, idx: i }
-  })
+  // Últimos 7 días del tracker (histórico real por fecha)
+  const weekData = getWeekTotals()
 
   const mealSummary = MEALS.map(meal => {
     const foods = tracker[day]?.[meal] || []
@@ -59,7 +58,7 @@ export default function Dashboard() {
         <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6">
           <div className="flex items-center gap-2 mb-5">
             <Flame size={20} className="text-orange-500" />
-            <h2 className="font-semibold text-gray-900 dark:text-white">Calorías hoy — {day}</h2>
+            <h2 className="font-semibold text-gray-900 dark:text-white capitalize">Calorías hoy — {todayLabel}</h2>
           </div>
           <CalorieBar current={totals.cal} target={targetCalories} />
           <div className="flex justify-center gap-8 mt-6">
@@ -122,13 +121,13 @@ export default function Dashboard() {
 
       {/* Week overview */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6">
-        <h2 className="font-semibold text-gray-900 dark:text-white mb-4">Resumen semanal</h2>
+        <h2 className="font-semibold text-gray-900 dark:text-white mb-4">Últimos 7 días</h2>
         <div className="flex items-end justify-between gap-2 h-40">
-          {weekData.map((d, i) => {
+          {weekData.map((d) => {
             const pct = targetCalories > 0 ? Math.min((d.cal / targetCalories) * 100, 100) : 0
-            const isToday = i === currentDay
+            const isToday = d.isToday
             return (
-              <div key={d.day} className="flex-1 flex flex-col items-center gap-1">
+              <div key={d.key} className="flex-1 flex flex-col items-center gap-1">
                 <span className="text-xs text-gray-500 dark:text-gray-400">{d.cal > 0 ? d.cal : '-'}</span>
                 <div className="w-full max-w-8 bg-gray-100 dark:bg-gray-800 rounded-t-lg relative" style={{ height: 100 }}>
                   <div
@@ -139,7 +138,7 @@ export default function Dashboard() {
                   />
                 </div>
                 <span className={`text-xs font-medium ${isToday ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-gray-500 dark:text-gray-400'}`}>
-                  {d.day}
+                  {d.label}
                 </span>
               </div>
             )

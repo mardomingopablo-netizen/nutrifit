@@ -1,11 +1,11 @@
 'use client'
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
-import { FOODS_DB, FOOD_CATEGORIES, DAYS, MEALS, MEAL_LABELS } from '../data/foods'
+import { FOODS_DB, FOOD_CATEGORIES, MEALS, MEAL_LABELS } from '../data/foods'
 import { Plus, Trash2, Search, ChefHat, BookOpen, Utensils, X, Check } from 'lucide-react'
 
 export default function RecipesPage() {
-  const { recipes, addRecipe, removeRecipe, addRecipeToTracker, currentDay } = useApp()
+  const { recipes, addRecipe, removeRecipe, addRecipeToTracker } = useApp()
   const [mode, setMode] = useState('list') // list, create
   const [newRecipe, setNewRecipe] = useState({ name: '', servings: 1, ingredients: [] })
   const [searchQuery, setSearchQuery] = useState('')
@@ -74,7 +74,7 @@ export default function RecipesPage() {
   }
 
   function handleAddToTracker(recipe) {
-    addRecipeToTracker(DAYS[currentDay], addMeal, recipe)
+    addRecipeToTracker(addMeal, recipe)
     setShowAddToTracker(null)
   }
 

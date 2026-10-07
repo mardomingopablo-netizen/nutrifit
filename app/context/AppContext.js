@@ -74,6 +74,48 @@ function createEmptySupplements() {
   return s
 }
 
+// ─── Fechas para el tracker diario ───
+// El tracker se guarda por FECHA (YYYY-MM-DD), no por día de la semana, para
+// que cada día empiece vacío automáticamente y quede histórico real.
+function todayKey() {
+  return new Date().toISOString().split('T')[0]
+}
+
+function emptyMeals() {
+  const m = {}
+  MEALS.forEach(meal => { m[meal] = [] })
+  return m
+}
+
+// Devuelve las claves de fecha de los últimos n días (de más antiguo a hoy).
+function lastNDays(n) {
+  const out = []
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    out.push(d.toISOString().split('T')[0])
+  }
+  return out
+}
+
+// Etiqueta corta de día de la semana para una clave de fecha.
+function dateLabel(key) {
+  const d = new Date(key + 'T00:00:00')
+  const idx = d.getDay() === 0 ? 6 : d.getDay() - 1
+  return DAYS_SHORT_CTX[idx]
+}
+
+const DAYS_SHORT_CTX = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+
+// Si el tracker guardado es del formato antiguo (por día de semana), lo
+// descartamos para empezar con el nuevo formato por fecha.
+function normalizeTracker(t) {
+  if (!t || typeof t !== 'object') return {}
+  const keys = Object.keys(t)
+  const isDateKeyed = keys.length === 0 || keys.every(k => /^\d{4}-\d{2}-\d{2}$/.test(k))
+  return isDateKeyed ? t : {}
+}
+
 // ─── STREAKS & ACHIEVEMENTS ───
 const ACHIEVEMENTS = [
   { id: 'first_log', name: 'Primer registro', desc: 'Registra tu primera comida', icon: '🎯', check: (ctx) => ctx.totalLogged >= 1 },
@@ -95,7 +137,7 @@ export function AppProvider({ children }) {
   const userId = user?.id
   const [hydrated, setHydrated] = useState(false)
   const [profile, setProfile] = useState(DEFAULT_PROFILE)
-  const [tracker, setTracker] = useState(createEmptyWeek)
+  const [tracker, setTracker] = useState({})
   const [weekPlan, setWeekPlan] = useState(createEmptyWeek)
   const [weightLog, setWeightLog] = useState([])
   const [recipes, setRecipes] = useState([])
@@ -151,7 +193,7 @@ export function AppProvider({ children }) {
     } catch {}
 
     setProfile(data?.profile || DEFAULT_PROFILE)
-    setTracker(data?.tracker || createEmptyWeek())
+    setTracker(normalizeTracker(data?.tracker))
     setWeekPlan(data?.weekPlan || createEmptyWeek())
     setWeightLog(data?.weightLog || [])
     setRecipes(data?.recipes || [])
@@ -178,25 +220,39 @@ export function AppProvider({ children }) {
     } catch {}
   }, [hydrated, userId, profile, tracker, weekPlan, weightLog, recipes, supplements, mySupplements, streakData, unlockedAchievements, photoEstimates, profileHistory, exerciseHistory])
 
-  // ─── TRACKER ───
-  const addFoodToTracker = useCallback((day, meal, food) => {
+  // ─── TRACKER (por fecha, se renueva cada día) ───
+  const addFoodToTracker = useCallback((meal, food) => {
+    const dk = todayKey()
     setTracker(prev => ({
       ...prev,
-      [day]: {
-        ...prev[day],
-        [meal]: [...(prev[day]?.[meal] || []), { ...food, id: Date.now() + Math.random() }],
+      [dk]: {
+        ...(prev[dk] || emptyMeals()),
+        [meal]: [...(prev[dk]?.[meal] || []), { ...food, id: Date.now() + Math.random() }],
       },
     }))
-    // Update streak
-    updateStreak(day)
+    updateStreak()
   }, [])
 
-  const removeFoodFromTracker = useCallback((day, meal, foodId) => {
+  const removeFoodFromTracker = useCallback((meal, foodId) => {
+    const dk = todayKey()
     setTracker(prev => ({
       ...prev,
-      [day]: {
-        ...prev[day],
-        [meal]: (prev[day]?.[meal] || []).filter(f => f.id !== foodId),
+      [dk]: {
+        ...(prev[dk] || emptyMeals()),
+        [meal]: (prev[dk]?.[meal] || []).filter(f => f.id !== foodId),
+      },
+    }))
+  }, [])
+
+  // Cambiar los gramos de un alimento ya registrado hoy.
+  const updateFoodGrams = useCallback((meal, foodId, grams) => {
+    const dk = todayKey()
+    const g = Math.max(1, Math.round(Number(grams) || 0))
+    setTracker(prev => ({
+      ...prev,
+      [dk]: {
+        ...(prev[dk] || emptyMeals()),
+        [meal]: (prev[dk]?.[meal] || []).map(f => f.id === foodId ? { ...f, grams: g } : f),
       },
     }))
   }, [])
@@ -230,6 +286,18 @@ export function AppProvider({ children }) {
       [day]: {
         ...prev[day],
         [meal]: (prev[day]?.[meal] || []).filter(m => m.id !== mealId),
+      },
+    }))
+  }, [])
+
+  // Cambiar los gramos de un alimento individual del plan (valores por 100g).
+  const updatePlanFoodGrams = useCallback((day, meal, itemId, grams) => {
+    const g = Math.max(1, Math.round(Number(grams) || 0))
+    setWeekPlan(prev => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        [meal]: (prev[day]?.[meal] || []).map(m => m.id === itemId ? { ...m, grams: g } : m),
       },
     }))
   }, [])
@@ -278,7 +346,7 @@ export function AppProvider({ children }) {
     setRecipes(prev => prev.filter(r => r.id !== recipeId))
   }, [])
 
-  const addRecipeToTracker = useCallback((day, meal, recipe) => {
+  const addRecipeToTracker = useCallback((meal, recipe) => {
     // El tracker guarda valores por 100g y multiplica por los gramos de la
     // porción. Convertimos los totales de la receta a por-100g.
     const grams = recipe.totalGrams || 100
@@ -292,7 +360,7 @@ export function AppProvider({ children }) {
       grams,
       isRecipe: true,
     }
-    addFoodToTracker(day, meal, food)
+    addFoodToTracker(meal, food)
   }, [addFoodToTracker])
 
   // ─── SUPPLEMENTS ───
@@ -412,7 +480,27 @@ export function AppProvider({ children }) {
   }, [tracker, weekPlan])
 
   const getWeekTotals = useCallback((source = 'tracker') => {
-    return DAYS.map(day => ({ day, ...getDayTotals(day, source) }))
+    if (source === 'plan') {
+      // El plan sigue siendo por día de la semana.
+      return DAYS.map((day, i) => ({ day, label: DAYS_SHORT_CTX[i], key: day, ...getDayTotals(day, 'plan') }))
+    }
+    // El tracker es por fecha: devolvemos los últimos 7 días (hasta hoy).
+    const today = todayKey()
+    return lastNDays(7).map(key => ({
+      key,
+      day: key,
+      label: dateLabel(key),
+      date: key,
+      isToday: key === today,
+      ...getDayTotals(key, 'tracker'),
+    }))
+  }, [getDayTotals])
+
+  // Totales de los últimos n días del tracker (para informes mensuales).
+  const getRangeTotals = useCallback((days = 30) => {
+    return lastNDays(days).map(key => ({
+      key, date: key, label: dateLabel(key), ...getDayTotals(key, 'tracker'),
+    }))
   }, [getDayTotals])
 
   const addWeight = useCallback((weight) => {
@@ -425,7 +513,7 @@ export function AppProvider({ children }) {
 
   // ─── SMART ALERTS ───
   const getAlerts = useCallback(() => {
-    const day = DAYS[currentDay]
+    const day = todayKey()
     const totals = getDayTotals(day)
     const alerts = []
     const hour = new Date().getHours()
@@ -460,8 +548,8 @@ export function AppProvider({ children }) {
       alerts.push({ type: 'warning', icon: '🧈', title: 'Exceso de grasa', message: `Llevas ${totals.fat}g de grasa (objetivo: ${targetMacros.fat}g). Reduce grasas en las siguientes comidas.` })
     }
 
-    // Supplement reminder
-    const daySupps = supplements[day] || []
+    // Supplement reminder (los suplementos siguen siendo por día de semana)
+    const daySupps = supplements[DAYS[currentDay]] || []
     const missedSupps = mySupplements.filter(s => !daySupps.includes(s.id))
     if (missedSupps.length > 0 && hour >= 8) {
       alerts.push({ type: 'info', icon: '💊', title: 'Suplementos pendientes', message: `No has registrado: ${missedSupps.map(s => s.name).join(', ')}` })
@@ -507,9 +595,10 @@ export function AppProvider({ children }) {
     tracker, weekPlan,
     currentDay, setCurrentDay,
     targetCalories, targetMacros,
-    addFoodToTracker, removeFoodFromTracker,
-    addMealToPlan, removeMealFromPlan, autoGeneratePlan,
-    getDayTotals, getMealTotals, getWeekTotals, getMealTarget,
+    addFoodToTracker, removeFoodFromTracker, updateFoodGrams,
+    addMealToPlan, removeMealFromPlan, autoGeneratePlan, updatePlanFoodGrams,
+    getDayTotals, getMealTotals, getWeekTotals, getRangeTotals, getMealTarget,
+    todayKey,
     weightLog, addWeight, removeWeight,
     calculateTDEE, calculateMacros, calculateBMR,
     ACTIVITY_MULTIPLIERS,

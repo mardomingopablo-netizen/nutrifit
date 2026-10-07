@@ -1,36 +1,94 @@
 'use client'
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
-import { DAYS, DAYS_SHORT, MEALS, MEAL_LABELS, MEAL_ICONS, MEAL_SUGGESTIONS, FOODS_DB } from '../data/foods'
+import { DAYS, DAYS_SHORT, MEALS, MEAL_LABELS, MEAL_ICONS, MEAL_SUGGESTIONS, FOODS_DB, getGoalKey } from '../data/foods'
+import FoodSearch from '../components/FoodSearch'
 import CalorieBar from '../components/CalorieBar'
-import { Wand2, Trash2, Plus, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react'
+import { Wand2, Trash2, Plus, ChevronLeft, ChevronRight, Search, Sparkles } from 'lucide-react'
+
+const GOAL_LABELS = { deficit: 'definición', maintenance: 'mantenimiento', bulk: 'volumen' }
 
 export default function PlanPage() {
   const {
     profile, weekPlan, targetCalories, targetMacros,
-    addMealToPlan, removeMealFromPlan, autoGeneratePlan,
+    addMealToPlan, removeMealFromPlan, autoGeneratePlan, updatePlanFoodGrams,
     getDayTotals, getMealTotals, getMealTarget,
   } = useApp()
 
   const [selectedDay, setSelectedDay] = useState(0)
-  const [showSuggestions, setShowSuggestions] = useState(null) // { meal }
+  const [adder, setAdder] = useState(null) // { meal, type: 'suggestions' | 'food' }
   const day = DAYS[selectedDay]
   const planTotals = getDayTotals(day, 'plan')
 
-  const goalKey = profile.goal === 'bulk' ? 'bulk' : profile.goal === 'deficit' ? 'deficit' : 'maintenance'
+  const goalKey = getGoalKey(profile.goal)
   const suggestions = MEAL_SUGGESTIONS[goalKey]
+  const goalLabel = GOAL_LABELS[profile.goal] || 'mantenimiento'
 
   function handleAddSuggestion(meal, suggestion) {
     addMealToPlan(day, meal, suggestion)
-    setShowSuggestions(null)
+    setAdder(null)
   }
+
+  function handleAddFood(meal, food) {
+    // Alimento individual (valores por 100g + gramos), editable después.
+    addMealToPlan(day, meal, food)
+  }
+
+  // Total efectivo de un item del plan (suma como en getDayTotals):
+  // alimento individual = por-100g × gramos; sugerencia = totales tal cual.
+  function itemTotals(item) {
+    const factor = item.grams ? item.grams / 100 : 1
+    return {
+      cal: Math.round((item.cal || 0) * factor),
+      protein: Math.round((item.protein || 0) * factor),
+      carbs: Math.round((item.carbs || 0) * factor),
+      fat: Math.round((item.fat || 0) * factor),
+    }
+  }
+
+  // Feedback del día según el objetivo
+  function dayFeedback(totals) {
+    if (totals.cal === 0) {
+      return [{ type: 'info', text: 'Planifica tus comidas para ver si el día encaja con tu objetivo.' }]
+    }
+    const msgs = []
+    const calDiff = totals.cal - targetCalories
+    const tol = targetCalories * 0.08
+    if (Math.abs(calDiff) <= tol) {
+      msgs.push({ type: 'success', text: `Las calorías encajan con tu objetivo (${totals.cal} / ${targetCalories} kcal).` })
+    } else if (calDiff > tol) {
+      msgs.push({
+        type: profile.goal === 'bulk' ? 'info' : 'warning',
+        text: `Te estás pasando de calorías (+${calDiff} kcal) para ${goalLabel}.`,
+      })
+    } else {
+      if (profile.goal === 'deficit') {
+        msgs.push({ type: 'success', text: `Buen déficit: ${Math.abs(calDiff)} kcal por debajo del objetivo.` })
+      } else {
+        msgs.push({ type: 'warning', text: `Te quedas corto de calorías (${calDiff} kcal) para ${goalLabel}.` })
+      }
+    }
+    // Proteína
+    if (totals.protein < targetMacros.protein * 0.85) {
+      msgs.push({ type: 'warning', text: `Proteína baja (${totals.protein} / ${targetMacros.protein}g). Añade fuentes de proteína.` })
+    } else {
+      msgs.push({ type: 'success', text: `Buena proteína (${totals.protein} / ${targetMacros.protein}g).` })
+    }
+    // Grasa
+    if (totals.fat > targetMacros.fat * 1.2) {
+      msgs.push({ type: 'warning', text: `Demasiada grasa (${totals.fat} / ${targetMacros.fat}g). No es la mejor elección.` })
+    }
+    return msgs
+  }
+
+  const feedback = dayFeedback(planTotals)
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Plan semanal</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Planifica tus comidas de la semana</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Recomendaciones según tu objetivo, o elige tu propia comida</p>
         </div>
         <button
           onClick={autoGeneratePlan}
@@ -54,7 +112,7 @@ export default function PlanPage() {
           {DAYS.map((d, i) => (
             <button
               key={d}
-              onClick={() => setSelectedDay(i)}
+              onClick={() => { setSelectedDay(i); setAdder(null) }}
               className={`flex-1 min-w-[70px] py-2.5 rounded-xl text-sm font-medium transition-all ${
                 i === selectedDay
                   ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
@@ -83,6 +141,20 @@ export default function PlanPage() {
           <span className="text-blue-500 font-medium">C: {planTotals.carbs}g / {targetMacros.carbs}g</span>
           <span className="text-amber-500 font-medium">G: {planTotals.fat}g / {targetMacros.fat}g</span>
         </div>
+
+        {/* Feedback según objetivo */}
+        <div className="mt-4 space-y-2">
+          {feedback.map((f, i) => (
+            <div key={i} className={`flex items-start gap-2 px-3 py-2 rounded-xl text-xs ${
+              f.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' :
+              f.type === 'warning' ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400' :
+              'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400'
+            }`}>
+              <span>{f.type === 'success' ? '✅' : f.type === 'warning' ? '⚠️' : 'ℹ️'}</span>
+              <span>{f.text}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Meals for selected day */}
@@ -108,12 +180,14 @@ export default function PlanPage() {
               </div>
             </div>
 
-            {/* Planned meals */}
+            {/* Planned items */}
             {items.length === 0 ? (
               <p className="text-center text-sm text-gray-400 py-4">Sin comidas planificadas</p>
             ) : (
               items.map(item => {
-                // Resolve food details from FOODS_DB
+                const t = itemTotals(item)
+                const isFood = !item.foods // alimento individual
+                // Desglose de ingredientes (solo sugerencias)
                 const foodDetails = (item.foods || []).map(f => {
                   const food = FOODS_DB.find(fd => fd.id === f.id)
                   return food ? { ...food, grams: f.grams } : null
@@ -122,41 +196,47 @@ export default function PlanPage() {
                 return (
                   <div key={item.id} className="px-5 py-3 border-b border-gray-50 dark:border-gray-800 last:border-0">
                     <div className="flex items-center gap-3">
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 dark:text-white">{item.name}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {item.cal} kcal
-                          {item.protein !== undefined && ` · P:${item.protein}g · C:${item.carbs}g · G:${item.fat}g`}
+                          {t.cal} kcal · P:{t.protein}g · C:{t.carbs}g · G:{t.fat}g
                         </p>
                       </div>
+                      {/* Gramos editables para alimentos individuales */}
+                      {isFood && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <input
+                            type="number"
+                            value={item.grams || 100}
+                            min={1}
+                            onChange={e => updatePlanFoodGrams(day, meal, item.id, e.target.value)}
+                            className="w-16 px-2 py-1.5 text-xs text-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white border-none outline-none"
+                          />
+                          <span className="text-xs text-gray-400">g</span>
+                        </div>
+                      )}
                       <button
                         onClick={() => removeMealFromPlan(day, meal, item.id)}
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all"
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all shrink-0"
                       >
                         <Trash2 size={14} />
                       </button>
                     </div>
-                    {/* Ingredient breakdown with grams */}
+                    {/* Ingredient breakdown (sugerencias) */}
                     {foodDetails.length > 0 && (
                       <div className="mt-2 ml-1 space-y-1">
-                        {foodDetails.map((food, idx) => {
-                          const cals = Math.round(food.cal * food.grams / 100)
-                          const prot = Math.round(food.protein * food.grams / 100 * 10) / 10
-                          const carb = Math.round(food.carbs * food.grams / 100 * 10) / 10
-                          const fat_ = Math.round(food.fat * food.grams / 100 * 10) / 10
-                          return (
-                            <div key={idx} className="flex items-center justify-between bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-1.5">
-                              <div className="flex items-center gap-2">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                                <span className="text-xs text-gray-700 dark:text-gray-300">{food.name}</span>
-                                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">{food.grams}g</span>
-                              </div>
-                              <span className="text-[10px] text-gray-400 whitespace-nowrap">
-                                {cals} kcal · P:{prot}g · C:{carb}g · G:{fat_}g
-                              </span>
+                        {foodDetails.map((food, idx) => (
+                          <div key={idx} className="flex items-center justify-between bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                              <span className="text-xs text-gray-700 dark:text-gray-300">{food.name}</span>
+                              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">{food.grams}g</span>
                             </div>
-                          )
-                        })}
+                            <span className="text-[10px] text-gray-400 whitespace-nowrap">
+                              {Math.round(food.cal * food.grams / 100)} kcal
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -164,49 +244,67 @@ export default function PlanPage() {
               })
             )}
 
-            {/* Add suggestion */}
+            {/* Add area */}
             <div className="p-3">
-              {showSuggestions?.meal === meal ? (
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 px-1">Sugerencias ({profile.goal === 'deficit' ? 'Definición' : profile.goal === 'bulk' ? 'Volumen' : 'Mantenimiento'})</p>
-                  {mealSuggs.map((s, i) => {
-                    const details = (s.foods || []).map(f => {
-                      const food = FOODS_DB.find(fd => fd.id === f.id)
-                      return food ? { name: food.name, grams: f.grams } : null
-                    }).filter(Boolean)
-                    return (
-                      <button
-                        key={i}
-                        onClick={() => handleAddSuggestion(meal, s)}
-                        className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-all text-left"
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm font-medium text-gray-900 dark:text-white">{s.name}</span>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">{s.cal} kcal</span>
-                        </div>
-                        {details.length > 0 && (
-                          <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                            {details.map(d => `${d.name} ${d.grams}g`).join(' · ')}
-                          </p>
-                        )}
-                      </button>
-                    )
-                  })}
+              {adder?.meal === meal ? (
+                adder.type === 'food' ? (
+                  <FoodSearch
+                    onAdd={(food) => handleAddFood(meal, food)}
+                    onClose={() => setAdder(null)}
+                  />
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 px-1">
+                      Sugerencias para {goalLabel}
+                    </p>
+                    {mealSuggs.map((s, i) => {
+                      const details = (s.foods || []).map(f => {
+                        const food = FOODS_DB.find(fd => fd.id === f.id)
+                        return food ? { name: food.name, grams: f.grams } : null
+                      }).filter(Boolean)
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => handleAddSuggestion(meal, s)}
+                          className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-all text-left"
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">{s.name}</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">{s.cal} kcal</span>
+                          </div>
+                          {details.length > 0 && (
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                              {details.map(d => `${d.name} ${d.grams}g`).join(' · ')}
+                            </p>
+                          )}
+                        </button>
+                      )
+                    })}
+                    <button
+                      onClick={() => setAdder(null)}
+                      className="w-full text-xs text-gray-400 py-1 hover:text-gray-600"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                )
+              ) : (
+                <div className="flex gap-2">
                   <button
-                    onClick={() => setShowSuggestions(null)}
-                    className="w-full text-xs text-gray-400 py-1 hover:text-gray-600"
+                    onClick={() => setAdder({ meal, type: 'suggestions' })}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400 hover:border-emerald-300 dark:hover:border-emerald-500/30 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all"
                   >
-                    Cancelar
+                    <Sparkles size={16} />
+                    Sugerencias
+                  </button>
+                  <button
+                    onClick={() => setAdder({ meal, type: 'food' })}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400 hover:border-emerald-300 dark:hover:border-emerald-500/30 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all"
+                  >
+                    <Search size={16} />
+                    Mi comida
                   </button>
                 </div>
-              ) : (
-                <button
-                  onClick={() => setShowSuggestions({ meal })}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400 hover:border-emerald-300 dark:hover:border-emerald-500/30 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all"
-                >
-                  <Plus size={16} />
-                  Añadir comida
-                </button>
               )}
             </div>
           </div>
