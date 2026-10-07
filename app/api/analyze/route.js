@@ -4,7 +4,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-const MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash'
+const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest'
 
 const SYSTEM_PROMPT = `Eres un nutricionista experto que analiza fotos de comida con máxima precisión, al nivel de las mejores apps de nutrición.
 
@@ -83,6 +83,10 @@ export async function POST(request) {
   }
 
   const { image, mimeType, description } = body || {}
+
+  // Permite sobrescribir el modelo desde el body para diagnosticar rapido.
+  const rawModel = typeof body?.model === 'string' ? body.model : ''
+  const MODEL = rawModel.replace(/[^A-Za-z0-9._\-]/g, '') || DEFAULT_MODEL
 
   if (!image && !description) {
     return NextResponse.json({ error: 'Envía una foto o una descripción' }, { status: 400 })
