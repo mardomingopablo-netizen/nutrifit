@@ -110,7 +110,7 @@ export async function POST(request) {
     if (!res.ok) {
       const errText = await res.text()
       return NextResponse.json(
-        { error: 'La IA no pudo analizar la comida', detail: errText.slice(0, 300) },
+        { error: 'Gemini: ' + errText.slice(0, 400), detail: errText.slice(0, 400) },
         { status: 502 }
       )
     }
