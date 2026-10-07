@@ -44,8 +44,30 @@ const RESPONSE_SCHEMA = {
   required: ['items'],
 }
 
+// Convierte caracteres homóglifos (cirílicos/griegos que parecen latinos) de vuelta
+// a ASCII y elimina cualquier carácter inválido. Protege contra claves "contaminadas"
+// al copiar/pegar, que si no provocan errores de cabecera HTTP.
+function cleanApiKey(key) {
+  if (!key) return key
+  const homoglyphs = {
+    'а': 'a', 'А': 'A', 'е': 'e', 'Е': 'E', 'о': 'o', 'О': 'O',
+    'с': 'c', 'С': 'C', 'р': 'p', 'Р': 'P', 'х': 'x', 'Х': 'X',
+    'у': 'y', 'У': 'Y', 'к': 'k', 'К': 'K', 'м': 'M', 'М': 'M',
+    'т': 'T', 'Т': 'T', 'в': 'B', 'В': 'B', 'н': 'H', 'Н': 'H',
+    'і': 'i', 'І': 'I', 'ѕ': 's', 'Ѕ': 'S', 'ј': 'j', 'Ј': 'J',
+    'ο': 'o', 'Ο': 'O', 'α': 'a', 'ρ': 'p', 'ε': 'e', 'ν': 'v',
+    ' ': '', '​': '', '‌': '', '‍': '', '﻿': '',
+  }
+  return key
+    .split('')
+    .map(ch => (homoglyphs[ch] !== undefined ? homoglyphs[ch] : ch))
+    .join('')
+    .replace(/[^A-Za-z0-9._\-]/g, '')
+    .trim()
+}
+
 export async function POST(request) {
-  const apiKey = process.env.GEMINI_API_KEY
+  const apiKey = cleanApiKey(process.env.GEMINI_API_KEY)
   if (!apiKey) {
     return NextResponse.json(
       { error: 'Falta la clave de la IA. Configura GEMINI_API_KEY en Vercel.' },
