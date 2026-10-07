@@ -10,11 +10,41 @@ export default function ProgressPage() {
   const {
     getDayTotals, getWeekTotals, targetCalories, targetMacros,
     profile, weightLog, addWeight, removeWeight, tracker,
-    profileHistory,
+    profileHistory, exerciseHistory,
   } = useApp()
 
   const [newWeight, setNewWeight] = useState('')
   const [tab, setTab] = useState('calories')
+  const [reportPeriod, setReportPeriod] = useState('week') // 'week' | 'month'
+
+  // Estadísticas de peso + alineación con el objetivo
+  const weightStats = useMemo(() => {
+    if (weightLog.length < 1) return null
+    const sorted = [...weightLog].sort((a, b) => new Date(a.date) - new Date(b.date))
+    const first = sorted[0]
+    const last = sorted[sorted.length - 1]
+    const change = Math.round((last.weight - first.weight) * 10) / 10
+    // Cambio en los últimos 30 días
+    const cutoff = Date.now() - 30 * 86400000
+    const recent = sorted.filter(w => new Date(w.date).getTime() >= cutoff)
+    const monthChange = recent.length >= 2
+      ? Math.round((recent[recent.length - 1].weight - recent[0].weight) * 10) / 10
+      : change
+
+    // ¿Va en la dirección del objetivo?
+    let aligned = null, message = ''
+    if (profile.goal === 'deficit') {
+      aligned = change < -0.2
+      message = aligned ? 'Bajando de peso — en línea con tu definición' : change > 0.2 ? 'Estás subiendo, revisa tu déficit calórico' : 'Peso estable — ajusta para seguir definiendo'
+    } else if (profile.goal === 'bulk') {
+      aligned = change > 0.2
+      message = aligned ? 'Subiendo de peso — en línea con tu volumen' : change < -0.2 ? 'Estás bajando, sube las calorías' : 'Peso estable — come algo más para ganar'
+    } else {
+      aligned = Math.abs(change) <= 1
+      message = aligned ? 'Peso estable — mantenimiento conseguido' : 'Tu peso se está moviendo más de lo esperado'
+    }
+    return { first, last, change, monthChange, aligned, message, count: sorted.length }
+  }, [weightLog, profile.goal])
 
   const weekData = getWeekTotals()
   const weekCalData = weekData.map((d, i) => ({
@@ -90,10 +120,18 @@ export default function ProgressPage() {
   const ACTIVITY_LABELS = { sedentary: 'Sedentario', light: 'Ligero', moderate: 'Moderado', active: 'Activo', very_active: 'Muy activo' }
 
   function exportPDF() {
+    const isMonth = reportPeriod === 'month'
     const goalLabel = GOAL_LABELS[profile.goal] || profile.goal
     const date = new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
+    const periodLabel = isMonth ? 'Mensual' : 'Semanal'
 
-    let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>NutriFit - Informe Semanal</title>
+    // Datos de los últimos 30 días para el informe mensual
+    const cutoff = Date.now() - 30 * 86400000
+    const monthWeights = [...weightLog].filter(w => new Date(w.date).getTime() >= cutoff).sort((a, b) => new Date(a.date) - new Date(b.date))
+    const monthProfiles = [...profileHistory].filter(p => new Date(p.date).getTime() >= cutoff)
+    const monthExercise = [...exerciseHistory].filter(e => new Date(e.date).getTime() >= cutoff)
+
+    let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>NutriFit - Informe ${periodLabel}</title>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
       body { font-family: system-ui, -apple-system, sans-serif; padding: 40px; color: #1a1a1a; max-width: 800px; margin: 0 auto; }
@@ -121,48 +159,100 @@ export default function ProgressPage() {
       @media print { body { padding: 20px; } }
     </style></head><body>`
 
-    html += `<h1>NutriFit — Informe Semanal</h1>`
+    html += `<h1>NutriFit — Informe ${periodLabel}</h1>`
     html += `<p class="subtitle">${date} · ${profile.name || 'Usuario'} · Objetivo: ${goalLabel}</p>`
 
-    html += `<div class="stats">
-      <div class="stat"><div class="stat-value">${Math.round(avgCal)}</div><div class="stat-label">Calorías media</div></div>
-      <div class="stat"><div class="stat-value">${daysLogged}/7</div><div class="stat-label">Días registrados</div></div>
-      <div class="stat"><div class="stat-value">${compliancePct}%</div><div class="stat-label">Cumplimiento</div></div>
-      <div class="stat"><div class="stat-value">${profile.weight} kg</div><div class="stat-label">Peso actual</div></div>
-    </div>`
+    if (isMonth) {
+      // ─── INFORME MENSUAL: foco en evolución de peso y perfil (30 días) ───
+      const wChange = monthWeights.length >= 2
+        ? Math.round((monthWeights[monthWeights.length - 1].weight - monthWeights[0].weight) * 10) / 10
+        : 0
+      html += `<div class="stats">
+        <div class="stat"><div class="stat-value">${monthWeights.length >= 2 ? (wChange > 0 ? '+' : '') + wChange + ' kg' : '—'}</div><div class="stat-label">Cambio de peso (30d)</div></div>
+        <div class="stat"><div class="stat-value">${profile.weight} kg</div><div class="stat-label">Peso actual</div></div>
+        <div class="stat"><div class="stat-value">${monthWeights.length}</div><div class="stat-label">Pesajes</div></div>
+        <div class="stat"><div class="stat-value">${monthExercise.length}</div><div class="stat-label">Entrenos</div></div>
+      </div>`
 
-    html += `<h2>Perfil nutricional</h2>`
-    html += `<div class="profile-info">
-      <div class="profile-item">Calorías objetivo: <span>${targetCalories} kcal</span></div>
-      <div class="profile-item">Proteína: <span>${targetMacros.protein}g</span></div>
-      <div class="profile-item">Carbohidratos: <span>${targetMacros.carbs}g</span></div>
-      <div class="profile-item">Grasa: <span>${targetMacros.fat}g</span></div>
-    </div>`
+      html += `<h2>Perfil nutricional actual</h2>`
+      html += `<div class="profile-info">
+        <div class="profile-item">Calorías objetivo: <span>${targetCalories} kcal</span></div>
+        <div class="profile-item">Proteína: <span>${targetMacros.protein}g</span></div>
+        <div class="profile-item">Carbohidratos: <span>${targetMacros.carbs}g</span></div>
+        <div class="profile-item">Grasa: <span>${targetMacros.fat}g</span></div>
+      </div>`
 
-    html += `<h2>Desglose por día</h2>`
-    html += `<table><thead><tr><th>Día</th><th>Calorías</th><th>Proteína</th><th>Carbos</th><th>Grasa</th><th>Estado</th></tr></thead><tbody>`
-    weekData.forEach((d, i) => {
-      const ok = d.cal > 0 && d.cal <= targetCalories * 1.1
-      html += `<tr>
-        <td>${DAYS[i]}</td>
-        <td>${d.cal || '-'}</td>
-        <td class="text-green">${d.protein || '-'}g</td>
-        <td class="text-blue">${d.carbs || '-'}g</td>
-        <td class="text-amber">${d.fat || '-'}g</td>
-        <td>${d.cal === 0 ? '<span style="color:#aaa">Sin datos</span>' : ok ? '<span class="badge badge-ok">OK</span>' : '<span class="badge badge-over">Exceso</span>'}</td>
-      </tr>`
-    })
-    html += `</tbody></table>`
+      html += `<h2>Evolución de peso (últimos 30 días)</h2>`
+      if (monthWeights.length > 0) {
+        html += `<table><thead><tr><th>Fecha</th><th>Peso</th><th>Cambio</th></tr></thead><tbody>`
+        monthWeights.forEach((w, i) => {
+          const prev = i > 0 ? monthWeights[i - 1] : null
+          const diff = prev ? (w.weight - prev.weight).toFixed(1) : '-'
+          const cls = diff !== '-' ? (parseFloat(diff) < 0 ? 'text-green' : parseFloat(diff) > 0 ? 'text-red' : '') : ''
+          html += `<tr><td>${new Date(w.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</td><td>${w.weight} kg</td><td class="${cls}">${diff !== '-' ? (parseFloat(diff) > 0 ? '+' : '') + diff + ' kg' : '-'}</td></tr>`
+        })
+        html += `</tbody></table>`
+      } else {
+        html += `<p style="color:#888;font-size:13px">Sin pesajes en los últimos 30 días. Registra tu peso para ver la evolución mensual.</p>`
+      }
 
-    if (weightLog.length > 0) {
-      html += `<h2>Historial de peso</h2><table><thead><tr><th>Fecha</th><th>Peso</th><th>Cambio</th></tr></thead><tbody>`
-      const sorted = [...weightLog].reverse().slice(0, 15)
-      sorted.forEach((w, i) => {
-        const prev = i < sorted.length - 1 ? sorted[i + 1] : null
-        const diff = prev ? (w.weight - prev.weight).toFixed(1) : '-'
-        html += `<tr><td>${new Date(w.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</td><td>${w.weight} kg</td><td>${diff !== '-' ? (parseFloat(diff) > 0 ? '+' : '') + diff + ' kg' : '-'}</td></tr>`
+      if (monthProfiles.length > 0) {
+        html += `<h2>Cambios de perfil</h2><table><thead><tr><th>Fecha</th><th>Peso</th><th>Objetivo</th><th>Calorías</th></tr></thead><tbody>`
+        monthProfiles.forEach(p => {
+          html += `<tr><td>${new Date(p.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</td><td>${p.weight} kg</td><td>${GOAL_LABELS[p.goal] || p.goal}</td><td>${p.calories} kcal</td></tr>`
+        })
+        html += `</tbody></table>`
+      }
+
+      html += `<h2>Resumen de la última semana</h2>`
+      html += `<div class="profile-info">
+        <div class="profile-item">Calorías media: <span>${Math.round(avgCal)} kcal</span></div>
+        <div class="profile-item">Días registrados: <span>${daysLogged}/7</span></div>
+        <div class="profile-item">Cumplimiento: <span>${compliancePct}%</span></div>
+        <div class="profile-item">Proteína media: <span>${Math.round(avgProtein)}g</span></div>
+      </div>`
+    } else {
+      // ─── INFORME SEMANAL: foco en la nutrición de la semana ───
+      html += `<div class="stats">
+        <div class="stat"><div class="stat-value">${Math.round(avgCal)}</div><div class="stat-label">Calorías media</div></div>
+        <div class="stat"><div class="stat-value">${daysLogged}/7</div><div class="stat-label">Días registrados</div></div>
+        <div class="stat"><div class="stat-value">${compliancePct}%</div><div class="stat-label">Cumplimiento</div></div>
+        <div class="stat"><div class="stat-value">${profile.weight} kg</div><div class="stat-label">Peso actual</div></div>
+      </div>`
+
+      html += `<h2>Perfil nutricional</h2>`
+      html += `<div class="profile-info">
+        <div class="profile-item">Calorías objetivo: <span>${targetCalories} kcal</span></div>
+        <div class="profile-item">Proteína: <span>${targetMacros.protein}g</span></div>
+        <div class="profile-item">Carbohidratos: <span>${targetMacros.carbs}g</span></div>
+        <div class="profile-item">Grasa: <span>${targetMacros.fat}g</span></div>
+      </div>`
+
+      html += `<h2>Desglose por día</h2>`
+      html += `<table><thead><tr><th>Día</th><th>Calorías</th><th>Proteína</th><th>Carbos</th><th>Grasa</th><th>Estado</th></tr></thead><tbody>`
+      weekData.forEach((d, i) => {
+        const ok = d.cal > 0 && d.cal <= targetCalories * 1.1
+        html += `<tr>
+          <td>${DAYS[i]}</td>
+          <td>${d.cal || '-'}</td>
+          <td class="text-green">${d.protein || '-'}g</td>
+          <td class="text-blue">${d.carbs || '-'}g</td>
+          <td class="text-amber">${d.fat || '-'}g</td>
+          <td>${d.cal === 0 ? '<span style="color:#aaa">Sin datos</span>' : ok ? '<span class="badge badge-ok">OK</span>' : '<span class="badge badge-over">Exceso</span>'}</td>
+        </tr>`
       })
       html += `</tbody></table>`
+
+      if (weightLog.length > 0) {
+        html += `<h2>Historial de peso</h2><table><thead><tr><th>Fecha</th><th>Peso</th><th>Cambio</th></tr></thead><tbody>`
+        const sorted = [...weightLog].reverse().slice(0, 15)
+        sorted.forEach((w, i) => {
+          const prev = i < sorted.length - 1 ? sorted[i + 1] : null
+          const diff = prev ? (w.weight - prev.weight).toFixed(1) : '-'
+          html += `<tr><td>${new Date(w.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</td><td>${w.weight} kg</td><td>${diff !== '-' ? (parseFloat(diff) > 0 ? '+' : '') + diff + ' kg' : '-'}</td></tr>`
+        })
+        html += `</tbody></table>`
+      }
     }
 
     html += `<div class="footer">Generado por NutriFit · Producto Saludable · ${date}</div>`
@@ -185,13 +275,30 @@ export default function ProgressPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Progreso</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Analiza tu evolución y mejora tus hábitos</p>
         </div>
-        <button
-          onClick={exportPDF}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium shadow-lg shadow-emerald-500/20 transition-all"
-        >
-          <Download size={16} />
-          Exportar informe
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
+            {[{ id: 'week', label: 'Semanal' }, { id: 'month', label: 'Mensual' }].map(p => (
+              <button
+                key={p.id}
+                onClick={() => setReportPeriod(p.id)}
+                className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                  reportPeriod === p.id
+                    ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={exportPDF}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium shadow-lg shadow-emerald-500/20 transition-all"
+          >
+            <Download size={16} />
+            Exportar
+          </button>
+        </div>
       </div>
 
       {/* Quick stats */}
@@ -381,6 +488,44 @@ export default function ProgressPage() {
               <Plus size={16} /> Registrar
             </button>
           </div>
+
+          {/* Weight trend summary */}
+          {weightStats && (
+            <div className={`mb-6 rounded-xl p-4 border ${
+              weightStats.aligned
+                ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20'
+                : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20'
+            }`}>
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">Cambio total</p>
+                    <p className={`text-xl font-bold ${
+                      weightStats.change < 0 ? 'text-emerald-600 dark:text-emerald-400' : weightStats.change > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-gray-700 dark:text-gray-300'
+                    }`}>
+                      {weightStats.change > 0 ? '+' : ''}{weightStats.change} kg
+                    </p>
+                  </div>
+                  <div className="h-10 w-px bg-gray-200 dark:bg-gray-700" />
+                  <div>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">Últimos 30 días</p>
+                    <p className="text-xl font-bold text-gray-700 dark:text-gray-300">
+                      {weightStats.monthChange > 0 ? '+' : ''}{weightStats.monthChange} kg
+                    </p>
+                  </div>
+                  <div className="h-10 w-px bg-gray-200 dark:bg-gray-700" />
+                  <div>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">Actual</p>
+                    <p className="text-xl font-bold text-gray-900 dark:text-white">{weightStats.last.weight} kg</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 max-w-xs">
+                  <span className="text-lg">{weightStats.aligned ? '✅' : '⚠️'}</span>
+                  <p className="text-xs text-gray-600 dark:text-gray-300">{weightStats.message}</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {weightLog.length === 0 ? (
             <p className="text-center text-gray-400 py-12 text-sm">No hay registros de peso. Añade tu peso para ver la evolución.</p>
