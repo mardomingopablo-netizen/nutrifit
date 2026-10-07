@@ -2,72 +2,17 @@
 import { useState, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import { DAYS, MEALS, MEAL_LABELS } from '../data/foods'
-import { Camera, Upload, Sparkles, Plus, Trash2, Utensils, X, Image as ImageIcon } from 'lucide-react'
-
-// Simulated AI estimation based on common food keywords
-function estimateFromDescription(description) {
-  const desc = description.toLowerCase()
-  const items = []
-
-  const foodMap = [
-    { keywords: ['pollo', 'pechuga', 'chicken'], name: 'Pechuga de pollo', cal: 165, protein: 31, carbs: 0, fat: 3.6, grams: 150 },
-    { keywords: ['arroz', 'rice'], name: 'Arroz blanco', cal: 130, protein: 2.7, carbs: 28, fat: 0.3, grams: 200 },
-    { keywords: ['pasta', 'espagueti', 'macarrones'], name: 'Pasta cocida', cal: 131, protein: 5, carbs: 25, fat: 1.1, grams: 200 },
-    { keywords: ['ensalada', 'salad', 'lechuga'], name: 'Ensalada mixta', cal: 20, protein: 1.5, carbs: 3, fat: 0.3, grams: 150 },
-    { keywords: ['huevo', 'egg', 'tortilla'], name: 'Huevos (x2)', cal: 155, protein: 13, carbs: 1.1, fat: 11, grams: 100 },
-    { keywords: ['pan', 'bread', 'tostada'], name: 'Pan', cal: 265, protein: 9, carbs: 49, fat: 3.2, grams: 60 },
-    { keywords: ['salmon', 'salmón', 'pescado', 'fish'], name: 'Salmón a la plancha', cal: 208, protein: 20, carbs: 0, fat: 13, grams: 150 },
-    { keywords: ['patata', 'papa', 'potato'], name: 'Patata cocida', cal: 77, protein: 2, carbs: 17, fat: 0.1, grams: 200 },
-    { keywords: ['tomate', 'tomato'], name: 'Tomate', cal: 18, protein: 0.9, carbs: 3.9, fat: 0.2, grams: 100 },
-    { keywords: ['aguacate', 'avocado'], name: 'Aguacate', cal: 160, protein: 2, carbs: 8.5, fat: 14.7, grams: 100 },
-    { keywords: ['yogur', 'yogurt'], name: 'Yogur griego', cal: 59, protein: 10, carbs: 3.6, fat: 0.7, grams: 170 },
-    { keywords: ['fruta', 'manzana', 'plátano', 'banana', 'naranja'], name: 'Fruta variada', cal: 52, protein: 0.3, carbs: 14, fat: 0.2, grams: 150 },
-    { keywords: ['carne', 'ternera', 'beef', 'filete'], name: 'Filete de ternera', cal: 250, protein: 26, carbs: 0, fat: 15, grams: 150 },
-    { keywords: ['atún', 'tuna'], name: 'Atún', cal: 132, protein: 28, carbs: 0, fat: 1.3, grams: 120 },
-    { keywords: ['queso', 'cheese'], name: 'Queso', cal: 402, protein: 25, carbs: 1.3, fat: 33, grams: 40 },
-    { keywords: ['leche', 'milk'], name: 'Leche semidesnatada', cal: 46, protein: 3.3, carbs: 4.8, fat: 1.5, grams: 250 },
-    { keywords: ['aceite', 'oil', 'oliva'], name: 'Aceite de oliva', cal: 884, protein: 0, carbs: 0, fat: 100, grams: 15 },
-    { keywords: ['legumbres', 'lentejas', 'garbanzos', 'judías'], name: 'Legumbres cocidas', cal: 116, protein: 9, carbs: 20, fat: 0.4, grams: 200 },
-    { keywords: ['batido', 'shake', 'protein', 'whey'], name: 'Batido de proteínas', cal: 120, protein: 24, carbs: 3, fat: 1.5, grams: 300 },
-    { keywords: ['café', 'coffee'], name: 'Café con leche', cal: 30, protein: 1.5, carbs: 2.5, fat: 1, grams: 200 },
-    { keywords: ['pizza'], name: 'Pizza (2 porciones)', cal: 266, protein: 11, carbs: 33, fat: 10, grams: 200 },
-    { keywords: ['hamburguesa', 'burger'], name: 'Hamburguesa', cal: 295, protein: 17, carbs: 24, fat: 14, grams: 200 },
-    { keywords: ['sopa', 'caldo'], name: 'Sopa/Caldo', cal: 40, protein: 3, carbs: 5, fat: 1, grams: 300 },
-    { keywords: ['verdura', 'brócoli', 'brocoli', 'espinaca', 'judía verde'], name: 'Verduras variadas', cal: 35, protein: 2.5, carbs: 6, fat: 0.4, grams: 200 },
-    { keywords: ['sandwich', 'bocadillo'], name: 'Bocadillo', cal: 280, protein: 15, carbs: 30, fat: 10, grams: 180 },
-  ]
-
-  foodMap.forEach(food => {
-    if (food.keywords.some(k => desc.includes(k))) {
-      items.push({ ...food, keywords: undefined })
-    }
-  })
-
-  // Default if nothing matched
-  if (items.length === 0) {
-    items.push({ name: 'Comida estimada', cal: 450, protein: 25, carbs: 45, fat: 15, grams: 350 })
-  }
-
-  const totals = items.reduce((acc, item) => {
-    const g = item.grams / 100
-    return {
-      cal: acc.cal + Math.round(item.cal * g),
-      protein: acc.protein + Math.round(item.protein * g * 10) / 10,
-      carbs: acc.carbs + Math.round(item.carbs * g * 10) / 10,
-      fat: acc.fat + Math.round(item.fat * g * 10) / 10,
-    }
-  }, { cal: 0, protein: 0, carbs: 0, fat: 0 })
-
-  return { items, totals }
-}
+import { Camera, Upload, Sparkles, Trash2, Utensils, X, Image as ImageIcon, AlertCircle } from 'lucide-react'
 
 export default function PhotoPage() {
   const { addFoodToTracker, addPhotoEstimate, photoEstimates, currentDay } = useApp()
   const [description, setDescription] = useState('')
   const [photoPreview, setPhotoPreview] = useState(null)
+  const [photoForApi, setPhotoForApi] = useState(null)
   const [photoThumb, setPhotoThumb] = useState(null)
   const [estimation, setEstimation] = useState(null)
   const [isEstimating, setIsEstimating] = useState(false)
+  const [error, setError] = useState('')
   const [addMeal, setAddMeal] = useState('lunch')
   const [showHistory, setShowHistory] = useState(false)
   const fileInputRef = useRef(null)
@@ -76,20 +21,30 @@ export default function PhotoPage() {
   function handlePhotoUpload(e) {
     const file = e.target.files?.[0]
     if (!file) return
+    setError('')
+    setEstimation(null)
     const reader = new FileReader()
     reader.onload = (ev) => {
       const img = new window.Image()
       img.onload = () => {
-        // Create full preview
         setPhotoPreview(ev.target.result)
-        // Create small thumbnail for history (max 200px)
+
+        // Medium-size version for the AI (max 1024px, good quality)
+        const apiCanvas = document.createElement('canvas')
+        const apiMax = 1024
+        const apiRatio = Math.min(apiMax / img.width, apiMax / img.height, 1)
+        apiCanvas.width = Math.round(img.width * apiRatio)
+        apiCanvas.height = Math.round(img.height * apiRatio)
+        apiCanvas.getContext('2d').drawImage(img, 0, 0, apiCanvas.width, apiCanvas.height)
+        setPhotoForApi(apiCanvas.toDataURL('image/jpeg', 0.85))
+
+        // Small thumbnail for history (max 200px)
         const canvas = document.createElement('canvas')
         const maxSize = 200
         const ratio = Math.min(maxSize / img.width, maxSize / img.height)
         canvas.width = img.width * ratio
         canvas.height = img.height * ratio
-        const ctx = canvas.getContext('2d')
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
         setPhotoThumb(canvas.toDataURL('image/jpeg', 0.6))
       }
       img.src = ev.target.result
@@ -99,34 +54,56 @@ export default function PhotoPage() {
 
   function removePhoto() {
     setPhotoPreview(null)
+    setPhotoForApi(null)
     setPhotoThumb(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
     if (cameraInputRef.current) cameraInputRef.current.value = ''
   }
 
-  function handleEstimate() {
-    if (!description.trim() && !photoPreview) return
+  async function handleEstimate() {
+    if (!description.trim() && !photoForApi) return
     setIsEstimating(true)
-    // Simulate AI processing delay
-    setTimeout(() => {
-      const text = description.trim() || 'comida estimada'
-      const result = estimateFromDescription(text)
-      setEstimation(result)
+    setError('')
+    setEstimation(null)
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image: photoForApi || undefined,
+          mimeType: 'image/jpeg',
+          description: description.trim() || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        setError(data.error || 'No se pudo analizar la comida. Inténtalo de nuevo.')
+      } else if (!data.items || data.items.length === 0) {
+        setError('No se detectó ningún alimento. Prueba con otra foto o añade una descripción.')
+      } else {
+        setEstimation(data)
+      }
+    } catch {
+      setError('Error de conexión. Comprueba tu internet e inténtalo de nuevo.')
+    } finally {
       setIsEstimating(false)
-    }, photoPreview ? 2000 : 1200)
+    }
   }
 
   function handleAddToTracker() {
     if (!estimation) return
     const day = DAYS[currentDay]
     estimation.items.forEach(item => {
+      const grams = item.grams || 100
+      const factor = grams > 0 ? 100 / grams : 1
+      // Store per-100g values so the tracker reproduces the estimated totals
       addFoodToTracker(day, addMeal, {
         name: item.name + ' (IA)',
-        cal: item.cal,
-        protein: item.protein,
-        carbs: item.carbs,
-        fat: item.fat,
-        grams: item.grams,
+        cal: Math.round(item.cal * factor),
+        protein: Math.round(item.protein * factor * 10) / 10,
+        carbs: Math.round(item.carbs * factor * 10) / 10,
+        fat: Math.round(item.fat * factor * 10) / 10,
+        grams,
       })
     })
     addPhotoEstimate({
@@ -137,19 +114,16 @@ export default function PhotoPage() {
       meal: addMeal,
     })
     setDescription('')
-    setPhotoPreview(null)
-    setPhotoThumb(null)
+    removePhoto()
     setEstimation(null)
-    if (fileInputRef.current) fileInputRef.current.value = ''
-    if (cameraInputRef.current) cameraInputRef.current.value = ''
   }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Estimación IA</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Sube una foto o describe tu comida y la IA estimará calorías y macros</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Escáner IA</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Haz una foto a tu plato y la IA detectará los alimentos y calculará calorías y macros</p>
         </div>
         <button
           onClick={() => setShowHistory(!showHistory)}
@@ -169,10 +143,9 @@ export default function PhotoPage() {
           <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 space-y-4">
             <div className="flex items-center gap-2 mb-2">
               <Camera size={20} className="text-blue-500" />
-              <h2 className="font-semibold text-gray-900 dark:text-white">Sube una foto de tu comida</h2>
+              <h2 className="font-semibold text-gray-900 dark:text-white">Escanea tu comida</h2>
             </div>
 
-            {/* Hidden file inputs */}
             <input
               ref={fileInputRef}
               type="file"
@@ -238,40 +211,47 @@ export default function PhotoPage() {
             <div className="flex items-center gap-2 mb-2">
               <Sparkles size={20} className="text-amber-500" />
               <h2 className="font-semibold text-gray-900 dark:text-white">
-                {photoPreview ? 'Añade una descripción (opcional)' : 'O describe tu comida'}
+                {photoPreview ? 'Añade detalles (opcional)' : 'O describe tu comida'}
               </h2>
             </div>
 
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {photoPreview
-                ? 'Puedes añadir detalles para mejorar la estimación.'
+                ? 'Añade detalles para afinar la estimación (cantidad, ingredientes, forma de cocción).'
                 : 'Escribe lo que has comido. Cuanto más detallado, mejor será la estimación.'}
             </p>
 
             <textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
-              placeholder="Ej: Pechuga de pollo a la plancha con arroz blanco y ensalada de tomate con aguacate"
+              placeholder="Ej: Plato grande con pechuga de pollo a la plancha, arroz blanco y ensalada de tomate con aceite de oliva"
               rows={3}
               className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-xl text-sm border-none outline-none text-gray-900 dark:text-white resize-none"
             />
 
             <button
               onClick={handleEstimate}
-              disabled={(!description.trim() && !photoPreview) || isEstimating}
+              disabled={(!description.trim() && !photoForApi) || isEstimating}
               className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 disabled:from-gray-300 disabled:to-gray-400 dark:disabled:from-gray-700 dark:disabled:to-gray-600 text-white rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2"
             >
               {isEstimating ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  {photoPreview ? 'Analizando imagen...' : 'Analizando...'}
+                  {photoForApi ? 'Analizando imagen...' : 'Analizando...'}
                 </>
               ) : (
                 <>
-                  <Sparkles size={16} /> Estimar calorías
+                  <Sparkles size={16} /> Analizar con IA
                 </>
               )}
             </button>
+
+            {error && (
+              <div className="flex items-start gap-2 px-4 py-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl text-sm text-red-700 dark:text-red-400">
+                <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                <span>{error}</span>
+              </div>
+            )}
           </div>
 
           {/* Estimation result */}
@@ -279,7 +259,7 @@ export default function PhotoPage() {
             <div className="bg-white dark:bg-gray-900 rounded-2xl border border-emerald-200 dark:border-emerald-500/30 p-6 space-y-4">
               <div className="flex items-center gap-2 mb-2">
                 <Sparkles size={20} className="text-emerald-500" />
-                <h2 className="font-semibold text-gray-900 dark:text-white">Resultado de la estimación</h2>
+                <h2 className="font-semibold text-gray-900 dark:text-white">Alimentos detectados</h2>
               </div>
 
               {/* Items */}
@@ -291,8 +271,8 @@ export default function PhotoPage() {
                       <p className="text-xs text-gray-500 dark:text-gray-400">{item.grams}g</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-bold text-gray-900 dark:text-white">{Math.round(item.cal * item.grams / 100)} kcal</p>
-                      <p className="text-xs text-gray-500">P:{Math.round(item.protein * item.grams / 100)}g C:{Math.round(item.carbs * item.grams / 100)}g G:{Math.round(item.fat * item.grams / 100)}g</p>
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">{item.cal} kcal</p>
+                      <p className="text-xs text-gray-500">P:{Math.round(item.protein)}g C:{Math.round(item.carbs)}g G:{Math.round(item.fat)}g</p>
                     </div>
                   </div>
                 ))}
