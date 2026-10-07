@@ -2,6 +2,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react'
 import { DAYS, MEALS, MEAL_SUGGESTIONS, MEAL_SPLIT, getGoalKey, computeFoodsTotals, scaleFoods } from '../data/foods'
 import { SUPPLEMENTS_DB } from '../data/supplements'
+import { useAuth } from './AuthContext'
 
 const AppContext = createContext()
 
@@ -90,6 +91,9 @@ const ACHIEVEMENTS = [
 ]
 
 export function AppProvider({ children }) {
+  const { user } = useAuth()
+  const userId = user?.id
+  const [hydrated, setHydrated] = useState(false)
   const [profile, setProfile] = useState(DEFAULT_PROFILE)
   const [tracker, setTracker] = useState(createEmptyWeek)
   const [weekPlan, setWeekPlan] = useState(createEmptyWeek)
@@ -122,37 +126,57 @@ export function AppProvider({ children }) {
     }
   }, [profile.goal, targetCalories, targetMacros])
 
-  // Load from localStorage
+  // ─── Carga por usuario ───
+  // Cada usuario guarda sus datos en su propia clave (ps_data_v2_<id>), así
+  // que al cerrar e iniciar sesión cada cuenta recupera lo suyo y nadie pisa
+  // los datos de otro. Al cambiar de usuario se reinicia el estado al de esa
+  // cuenta (o a valores por defecto si es nueva).
   useEffect(() => {
+    if (!userId) return
+    setHydrated(false)
+    let data = null
     try {
-      const saved = localStorage.getItem('ps_data_v2')
-      if (saved) {
-        const data = JSON.parse(saved)
-        if (data.profile) setProfile(data.profile)
-        if (data.tracker) setTracker(data.tracker)
-        if (data.weekPlan) setWeekPlan(data.weekPlan)
-        if (data.weightLog) setWeightLog(data.weightLog)
-        if (data.recipes) setRecipes(data.recipes)
-        if (data.supplements) setSupplements(data.supplements)
-        if (data.mySupplements) setMySupplements(data.mySupplements)
-        if (data.streakData) setStreakData(data.streakData)
-        if (data.unlockedAchievements) setUnlockedAchievements(data.unlockedAchievements)
-        if (data.photoEstimates) setPhotoEstimates(data.photoEstimates)
-        if (data.profileHistory) setProfileHistory(data.profileHistory)
-        if (data.exerciseHistory) setExerciseHistory(data.exerciseHistory)
+      const raw = localStorage.getItem(`ps_data_v2_${userId}`)
+      if (raw) {
+        data = JSON.parse(raw)
+      } else {
+        // Migración única: los datos antiguos globales pasan al PRIMER
+        // usuario que inicie sesión tras la actualización.
+        const legacy = localStorage.getItem('ps_data_v2')
+        if (legacy && !localStorage.getItem('ps_legacy_migrated')) {
+          data = JSON.parse(legacy)
+          localStorage.setItem('ps_legacy_migrated', '1')
+        }
       }
     } catch {}
-  }, [])
 
-  // Save to localStorage
+    setProfile(data?.profile || DEFAULT_PROFILE)
+    setTracker(data?.tracker || createEmptyWeek())
+    setWeekPlan(data?.weekPlan || createEmptyWeek())
+    setWeightLog(data?.weightLog || [])
+    setRecipes(data?.recipes || [])
+    setSupplements(data?.supplements || createEmptySupplements())
+    setMySupplements(data?.mySupplements || [])
+    setStreakData(data?.streakData || { currentStreak: 0, bestStreak: 0, loggedDays: [] })
+    setUnlockedAchievements(data?.unlockedAchievements || [])
+    setPhotoEstimates(data?.photoEstimates || [])
+    setProfileHistory(data?.profileHistory || [])
+    setExerciseHistory(data?.exerciseHistory || [])
+    setHydrated(true)
+  }, [userId])
+
+  // ─── Guardado por usuario ───
+  // Solo guardamos tras cargar (hydrated) para no pisar los datos del usuario
+  // con los valores por defecto del primer render.
   useEffect(() => {
+    if (!hydrated || !userId) return
     try {
-      localStorage.setItem('ps_data_v2', JSON.stringify({
+      localStorage.setItem(`ps_data_v2_${userId}`, JSON.stringify({
         profile, tracker, weekPlan, weightLog, recipes,
         supplements, mySupplements, streakData, unlockedAchievements, photoEstimates, profileHistory, exerciseHistory,
       }))
     } catch {}
-  }, [profile, tracker, weekPlan, weightLog, recipes, supplements, mySupplements, streakData, unlockedAchievements, photoEstimates, profileHistory, exerciseHistory])
+  }, [hydrated, userId, profile, tracker, weekPlan, weightLog, recipes, supplements, mySupplements, streakData, unlockedAchievements, photoEstimates, profileHistory, exerciseHistory])
 
   // ─── TRACKER ───
   const addFoodToTracker = useCallback((day, meal, food) => {

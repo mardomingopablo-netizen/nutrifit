@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 import MacroRing from '../components/MacroRing'
 import { Calculator, Save, RotateCcw, History, Trash2 } from 'lucide-react'
@@ -32,6 +32,20 @@ export default function CalculatorPage() {
   })
 
   const [saved, setSaved] = useState(false)
+
+  // Rellena el formulario con el perfil guardado cuando este cambia (al iniciar
+  // sesión o recargar), para que cada usuario vea siempre sus datos.
+  useEffect(() => {
+    setForm({
+      name: profile.name || '',
+      age: profile.age,
+      weight: profile.weight,
+      height: profile.height,
+      gender: profile.gender,
+      activity: profile.activity,
+      goal: profile.goal,
+    })
+  }, [profile])
 
   const bmr = calculateBMR(form)
   const tdee = calculateTDEE(form)
