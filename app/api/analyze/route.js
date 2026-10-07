@@ -124,19 +124,40 @@ export async function POST(request) {
 
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey,
-      },
-      body: JSON.stringify(geminiBody),
-    })
+
+    // Reintenta cuando el modelo esta saturado (503) o con rate limit (429).
+    // Estos errores de Gemini suelen ser pasajeros, asi que esperamos un poco
+    // y volvemos a intentarlo antes de darnos por vencidos.
+    const MAX_ATTEMPTS = 4
+    let res
+    let errText = ''
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
+        body: JSON.stringify(geminiBody),
+      })
+
+      if (res.ok) break
+
+      errText = await res.text()
+      const retryable = res.status === 503 || res.status === 429
+      if (!retryable || attempt === MAX_ATTEMPTS) break
+
+      // Backoff creciente: 0.8s, 1.6s, 2.4s
+      await new Promise(r => setTimeout(r, attempt * 800))
+    }
 
     if (!res.ok) {
-      const errText = await res.text()
+      const saturado = res.status === 503 || res.status === 429
+      const mensaje = saturado
+        ? 'La IA esta saturada en este momento. Vuelve a intentarlo en unos segundos.'
+        : 'Gemini: ' + errText.slice(0, 400)
       return NextResponse.json(
-        { error: 'Gemini: ' + errText.slice(0, 400), detail: errText.slice(0, 400) },
+        { error: mensaje, detail: errText.slice(0, 400) },
         { status: 502 }
       )
     }
