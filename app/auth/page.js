@@ -62,7 +62,7 @@ export default function AuthPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <img src="/logo.png" alt="NutriFit" className="w-20 h-20 rounded-2xl object-cover shadow-xl shadow-emerald-500/10 mx-auto mb-4" />
+          <img src="/logo.png?v=2" alt="NutriFit" className="w-20 h-20 rounded-2xl object-cover shadow-xl shadow-emerald-500/10 mx-auto mb-4" />
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">NutriFit</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Tu plan nutricional inteligente</p>
         </div>

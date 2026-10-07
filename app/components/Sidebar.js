@@ -50,7 +50,7 @@ export default function Sidebar() {
       `}>
         {/* Logo */}
         <div className="p-6 flex items-center gap-3">
-          <img src="/logo.png" alt="NutriFit" className="w-14 h-14 rounded-xl object-cover shadow-lg shadow-emerald-500/10" />
+          <img src="/logo.png?v=2" alt="NutriFit" className="w-14 h-14 rounded-xl object-cover shadow-lg shadow-emerald-500/10" />
           <div>
             <h1 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">NutriFit</h1>
             <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium tracking-wide">PRODUCTO SALUDABLE</p>
