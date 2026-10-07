@@ -1,10 +1,12 @@
 'use client'
 import { useState } from 'react'
-import { Search, Plus, X, Sparkles, AlertCircle } from 'lucide-react'
+import { Search, Plus, X, Sparkles, AlertCircle, ScanLine, Camera } from 'lucide-react'
 import { FOODS_DB, FOOD_CATEGORIES } from '../data/foods'
+import { lookupBarcode, searchProducts } from '../lib/openfoodfacts'
+import BarcodeScanner from './BarcodeScanner'
 
 export default function FoodSearch({ onAdd, onClose }) {
-  const [mode, setMode] = useState('search') // 'search' | 'ai'
+  const [mode, setMode] = useState('search') // 'search' | 'ai' | 'off'
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('all')
   const [grams, setGrams] = useState({})
@@ -14,6 +16,14 @@ export default function FoodSearch({ onAdd, onClose }) {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [aiItems, setAiItems] = useState(null)
   const [aiError, setAiError] = useState('')
+
+  // Open Food Facts / barcode mode
+  const [scanning, setScanning] = useState(false)
+  const [barcode, setBarcode] = useState('')
+  const [offQuery, setOffQuery] = useState('')
+  const [offResults, setOffResults] = useState(null)
+  const [offLoading, setOffLoading] = useState(false)
+  const [offError, setOffError] = useState('')
 
   const filtered = FOODS_DB.filter(f => {
     const matchQ = f.name.toLowerCase().includes(query.toLowerCase())
@@ -76,6 +86,42 @@ export default function FoodSearch({ onAdd, onClose }) {
     setDescription('')
   }
 
+  // ─── Open Food Facts / código de barras ───
+  async function handleBarcode(code) {
+    setScanning(false)
+    setOffError('')
+    setOffLoading(true)
+    setOffResults(null)
+    try {
+      const product = await lookupBarcode(code)
+      if (product) {
+        setOffResults([product])
+      } else {
+        setOffError(`No se encontró el producto (código ${code}). Prueba a buscarlo por nombre.`)
+      }
+    } catch {
+      setOffError('Error de conexión con la base de datos de productos.')
+    } finally {
+      setOffLoading(false)
+    }
+  }
+
+  async function searchOff() {
+    if (offQuery.trim().length < 2) return
+    setOffError('')
+    setOffLoading(true)
+    setOffResults(null)
+    try {
+      const results = await searchProducts(offQuery)
+      if (results.length === 0) setOffError('No se encontraron productos con ese nombre.')
+      setOffResults(results)
+    } catch {
+      setOffError('Error de conexión con la base de datos de productos.')
+    } finally {
+      setOffLoading(false)
+    }
+  }
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-xl overflow-hidden">
       {/* Mode tabs */}
@@ -95,7 +141,15 @@ export default function FoodSearch({ onAdd, onClose }) {
               mode === 'ai' ? 'bg-white dark:bg-gray-800 text-amber-600 dark:text-amber-400 shadow-sm' : 'text-gray-500 dark:text-gray-400'
             }`}
           >
-            <Sparkles size={14} /> Describir con IA
+            <Sparkles size={14} /> IA
+          </button>
+          <button
+            onClick={() => setMode('off')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all ${
+              mode === 'off' ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-500 dark:text-gray-400'
+            }`}
+          >
+            <ScanLine size={14} /> Código
           </button>
         </div>
         {onClose && (
@@ -190,7 +244,7 @@ export default function FoodSearch({ onAdd, onClose }) {
             )}
           </div>
         </>
-      ) : (
+      ) : mode === 'ai' ? (
         /* ─── AI mode ─── */
         <div className="p-4 space-y-3">
           <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -247,6 +301,109 @@ export default function FoodSearch({ onAdd, onClose }) {
               >
                 <Plus size={16} /> Añadir todo ({aiItems.length})
               </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* ─── Open Food Facts / código de barras ─── */
+        <div className="p-4 space-y-3">
+          {scanning ? (
+            <BarcodeScanner onDetected={handleBarcode} onClose={() => setScanning(false)} />
+          ) : (
+            <>
+              <button
+                onClick={() => { setScanning(true); setOffError('') }}
+                className="w-full py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2"
+              >
+                <Camera size={16} /> Escanear código de barras
+              </button>
+
+              {/* Manual barcode */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={barcode}
+                  onChange={e => setBarcode(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && barcode.trim()) handleBarcode(barcode.trim()) }}
+                  placeholder="O escribe el código..."
+                  className="flex-1 px-3 py-2.5 bg-gray-100 dark:bg-gray-700 rounded-xl text-sm border-none outline-none text-gray-900 dark:text-white"
+                />
+                <button
+                  onClick={() => barcode.trim() && handleBarcode(barcode.trim())}
+                  className="px-4 py-2.5 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-xl text-sm font-medium"
+                >
+                  Buscar
+                </button>
+              </div>
+
+              {/* Name search (Open Food Facts) */}
+              <div className="flex gap-2">
+                <div className="flex-1 relative">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={offQuery}
+                    onChange={e => setOffQuery(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') searchOff() }}
+                    placeholder="O busca un producto por nombre..."
+                    className="w-full pl-9 pr-3 py-2.5 bg-gray-100 dark:bg-gray-700 rounded-xl text-sm border-none outline-none text-gray-900 dark:text-white"
+                  />
+                </div>
+                <button
+                  onClick={searchOff}
+                  className="px-4 py-2.5 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-xl text-sm font-medium"
+                >
+                  Buscar
+                </button>
+              </div>
+            </>
+          )}
+
+          {offLoading && (
+            <div className="flex items-center justify-center gap-2 py-4 text-sm text-gray-500 dark:text-gray-400">
+              <div className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+              Buscando producto...
+            </div>
+          )}
+
+          {offError && (
+            <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl text-xs text-amber-700 dark:text-amber-400">
+              <AlertCircle size={14} className="shrink-0 mt-0.5" />
+              <span>{offError}</span>
+            </div>
+          )}
+
+          {offResults && offResults.length > 0 && (
+            <div className="max-h-72 overflow-y-auto space-y-2">
+              {offResults.map(food => (
+                <div key={food.id} className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 rounded-xl px-3 py-2.5">
+                  {food.image && (
+                    <img src={food.image} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{food.name}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {food.cal} kcal · P:{food.protein}g · C:{food.carbs}g · G:{food.fat}g
+                      <span className="text-gray-400"> /100g</span>
+                    </p>
+                  </div>
+                  <input
+                    type="number"
+                    value={grams[food.id] || 100}
+                    onChange={e => setGrams(prev => ({ ...prev, [food.id]: Number(e.target.value) }))}
+                    className="w-14 px-1 py-1.5 text-xs text-center rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-900 dark:text-white border-none outline-none shrink-0"
+                    min={1}
+                  />
+                  <span className="text-xs text-gray-400">g</span>
+                  <button
+                    onClick={() => handleAdd(food)}
+                    className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-500/30 transition-all shrink-0"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>
