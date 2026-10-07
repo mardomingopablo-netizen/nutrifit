@@ -416,6 +416,11 @@ export function AppProvider({ children }) {
     setWeekPlan(newPlan)
   }, [profile])
 
+  // Vacía el plan semanal completo para empezar de cero.
+  const clearPlan = useCallback(() => {
+    setWeekPlan(createEmptyWeek())
+  }, [])
+
   // ─── RECIPES ───
   const addRecipe = useCallback((recipe) => {
     setRecipes(prev => [...prev, { ...recipe, id: Date.now() + Math.random(), createdAt: new Date().toISOString() }])
@@ -683,7 +688,7 @@ export function AppProvider({ children }) {
     currentDay, setCurrentDay,
     targetCalories, targetMacros,
     addFoodToTracker, removeFoodFromTracker, updateFoodGrams,
-    addMealToPlan, removeMealFromPlan, autoGeneratePlan, updatePlanFoodGrams, scalePlanMealPortion,
+    addMealToPlan, removeMealFromPlan, autoGeneratePlan, clearPlan, updatePlanFoodGrams, scalePlanMealPortion,
     updatePlanIngredientGrams, scalePlanIngredient, removePlanIngredient,
     getDayTotals, getMealTotals, getWeekTotals, getRangeTotals, getMealTarget,
     todayKey,

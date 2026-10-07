@@ -11,7 +11,7 @@ const GOAL_LABELS = { deficit: 'definición', maintenance: 'mantenimiento', bulk
 export default function PlanPage() {
   const {
     profile, weekPlan, targetCalories, targetMacros,
-    addMealToPlan, removeMealFromPlan, autoGeneratePlan, updatePlanFoodGrams, scalePlanMealPortion,
+    addMealToPlan, removeMealFromPlan, autoGeneratePlan, clearPlan, updatePlanFoodGrams, scalePlanMealPortion,
     scalePlanIngredient, removePlanIngredient,
     getDayTotals, getMealTotals, getMealTarget,
   } = useApp()
@@ -93,13 +93,22 @@ export default function PlanPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Plan semanal</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Recomendaciones según tu objetivo, o elige tu propia comida</p>
         </div>
-        <button
-          onClick={autoGeneratePlan}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium shadow-lg shadow-emerald-500/20 transition-all"
-        >
-          <Wand2 size={16} />
-          Generar plan automático
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { if (confirm('¿Borrar todo el plan de la semana? Esto no se puede deshacer.')) clearPlan() }}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:border-red-300 hover:text-red-600 dark:hover:border-red-500/30 dark:hover:text-red-400 rounded-xl text-sm font-medium transition-all"
+          >
+            <Trash2 size={16} />
+            Borrar todo
+          </button>
+          <button
+            onClick={autoGeneratePlan}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium shadow-lg shadow-emerald-500/20 transition-all"
+          >
+            <Wand2 size={16} />
+            Generar plan automático
+          </button>
+        </div>
       </div>
 
       {/* Day navigation */}
