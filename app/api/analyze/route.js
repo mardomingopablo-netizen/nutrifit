@@ -125,30 +125,40 @@ export async function POST(request) {
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`
 
-    // Reintenta cuando el modelo esta saturado (503) o con rate limit (429).
-    // Estos errores de Gemini suelen ser pasajeros, asi que esperamos un poco
-    // y volvemos a intentarlo antes de darnos por vencidos.
-    const MAX_ATTEMPTS = 4
+    // Reintenta cuando el modelo esta saturado (503) o con rate limit (429),
+    // pero con un presupuesto de tiempo estricto para no agotar el limite de
+    // la funcion de Vercel y provocar un 504. Cada peticion a Gemini tiene su
+    // propio timeout, y solo reintentamos si aun queda margen.
+    const MAX_ATTEMPTS = 2
+    const DEADLINE = Date.now() + 45000 // margen bajo el maxDuration de 60s
+    const PER_REQUEST_TIMEOUT = 20000
     let res
     let errText = ''
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey,
-        },
-        body: JSON.stringify(geminiBody),
-      })
+      const ctrl = new AbortController()
+      const to = setTimeout(() => ctrl.abort(), PER_REQUEST_TIMEOUT)
+      try {
+        res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+          },
+          body: JSON.stringify(geminiBody),
+          signal: ctrl.signal,
+        })
+      } finally {
+        clearTimeout(to)
+      }
 
       if (res.ok) break
 
       errText = await res.text()
       const retryable = res.status === 503 || res.status === 429
-      if (!retryable || attempt === MAX_ATTEMPTS) break
+      // Solo reintentamos si es un error pasajero y queda tiempo de sobra.
+      if (!retryable || attempt === MAX_ATTEMPTS || Date.now() + 10000 > DEADLINE) break
 
-      // Backoff creciente: 0.8s, 1.6s, 2.4s
-      await new Promise(r => setTimeout(r, attempt * 800))
+      await new Promise(r => setTimeout(r, 1000))
     }
 
     if (!res.ok) {
