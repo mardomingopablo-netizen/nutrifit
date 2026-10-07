@@ -40,7 +40,7 @@ export function AuthProvider({ children }) {
       try {
         const now = new Date()
         const fecha = encodeURIComponent(now.toLocaleDateString('es-ES') + ' ' + now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }))
-        const url = `https://script.google.com/macros/s/AKfycbxHWVrqy-dVJlagY-ACvVIP3w2yngvr_WtiF14c8EUqKWIDQPQjSgD3F0JYckCqyPYO/exec?fecha=${fecha}&nombre=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}`
+        const url = `https://script.google.com/macros/s/AKfycbxy6YsFxBn-3p-_2XzFBusUxpr6A8B108uXn7LdXVex_PBowxXtcM4fEJuWvGpYOSG5/exec?fecha=${fecha}&nombre=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}`
         fetch(url, { mode: 'no-cors' })
       } catch {}
 
