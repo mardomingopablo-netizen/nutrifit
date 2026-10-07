@@ -1,6 +1,6 @@
 'use client'
 import { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react'
-import { DAYS, MEALS, MEAL_SUGGESTIONS } from '../data/foods'
+import { DAYS, MEALS, MEAL_SUGGESTIONS, MEAL_SPLIT, getGoalKey, computeFoodsTotals, scaleFoods } from '../data/foods'
 import { SUPPLEMENTS_DB } from '../data/supplements'
 
 const AppContext = createContext()
@@ -110,6 +110,18 @@ export function AppProvider({ children }) {
   const targetCalories = calculateTDEE(profile)
   const targetMacros = calculateMacros(targetCalories, profile.goal)
 
+  // Objetivo recomendado para una comida concreta, según el reparto del objetivo.
+  const getMealTarget = useCallback((meal) => {
+    const split = MEAL_SPLIT[getGoalKey(profile.goal)]
+    const pct = split[meal] || 0.25
+    return {
+      cal: Math.round(targetCalories * pct),
+      protein: Math.round(targetMacros.protein * pct),
+      carbs: Math.round(targetMacros.carbs * pct),
+      fat: Math.round(targetMacros.fat * pct),
+    }
+  }, [profile.goal, targetCalories, targetMacros])
+
   // Load from localStorage
   useEffect(() => {
     try {
@@ -166,12 +178,24 @@ export function AppProvider({ children }) {
   }, [])
 
   // ─── PLAN ───
+  // Normaliza una comida del plan para que SIEMPRE lleve sus totales de macros
+  // (cal, protein, carbs, fat) calculados desde sus ingredientes. Así el plan
+  // muestra macros reales y no ceros.
+  function normalizePlanMeal(mealData) {
+    if (mealData.foods && (mealData.protein === undefined || mealData.carbs === undefined)) {
+      const totals = computeFoodsTotals(mealData.foods)
+      return { ...mealData, cal: totals.cal, protein: totals.protein, carbs: totals.carbs, fat: totals.fat }
+    }
+    return mealData
+  }
+
   const addMealToPlan = useCallback((day, meal, mealData) => {
+    const normalized = normalizePlanMeal(mealData)
     setWeekPlan(prev => ({
       ...prev,
       [day]: {
         ...prev[day],
-        [meal]: [...(prev[day]?.[meal] || []), { ...mealData, id: Date.now() + Math.random() }],
+        [meal]: [...(prev[day]?.[meal] || []), { ...normalized, id: Date.now() + Math.random() }],
       },
     }))
   }, [])
@@ -187,19 +211,39 @@ export function AppProvider({ children }) {
   }, [])
 
   const autoGeneratePlan = useCallback(() => {
-    const goal = profile.goal === 'bulk' ? 'bulk' : profile.goal === 'deficit' ? 'deficit' : 'maintenance'
+    const goal = getGoalKey(profile.goal)
     const suggestions = MEAL_SUGGESTIONS[goal]
+    const dayTarget = calculateTDEE(profile)
+    const split = MEAL_SPLIT[goal]
     const newPlan = {}
+
     DAYS.forEach(day => {
       newPlan[day] = {}
       MEALS.forEach(meal => {
         const options = suggestions[meal]
         const pick = options[Math.floor(Math.random() * options.length)]
-        newPlan[day][meal] = [{ ...pick, id: Date.now() + Math.random() }]
+        // Ajusta las porciones para acercar cada comida a su objetivo calórico
+        // (objetivo del día × reparto de la comida), con un tope de escala
+        // razonable para no deformar las raciones.
+        const base = computeFoodsTotals(pick.foods)
+        const mealTarget = Math.round(dayTarget * (split[meal] || 0.25))
+        let factor = base.cal > 0 ? mealTarget / base.cal : 1
+        factor = Math.max(0.5, Math.min(2, factor))
+        const scaledFoods = scaleFoods(pick.foods, factor)
+        const totals = computeFoodsTotals(scaledFoods)
+        newPlan[day][meal] = [{
+          name: pick.name,
+          foods: scaledFoods,
+          cal: totals.cal,
+          protein: totals.protein,
+          carbs: totals.carbs,
+          fat: totals.fat,
+          id: Date.now() + Math.random(),
+        }]
       })
     })
     setWeekPlan(newPlan)
-  }, [profile.goal])
+  }, [profile])
 
   // ─── RECIPES ───
   const addRecipe = useCallback((recipe) => {
@@ -211,13 +255,17 @@ export function AppProvider({ children }) {
   }, [])
 
   const addRecipeToTracker = useCallback((day, meal, recipe) => {
+    // El tracker guarda valores por 100g y multiplica por los gramos de la
+    // porción. Convertimos los totales de la receta a por-100g.
+    const grams = recipe.totalGrams || 100
+    const factor = grams > 0 ? 100 / grams : 1
     const food = {
       name: recipe.name,
-      cal: recipe.totalCal,
-      protein: recipe.totalProtein,
-      carbs: recipe.totalCarbs,
-      fat: recipe.totalFat,
-      grams: recipe.totalGrams,
+      cal: Math.round((recipe.totalCal || 0) * factor),
+      protein: Math.round((recipe.totalProtein || 0) * factor * 10) / 10,
+      carbs: Math.round((recipe.totalCarbs || 0) * factor * 10) / 10,
+      fat: Math.round((recipe.totalFat || 0) * factor * 10) / 10,
+      grams,
       isRecipe: true,
     }
     addFoodToTracker(day, meal, food)
@@ -437,7 +485,7 @@ export function AppProvider({ children }) {
     targetCalories, targetMacros,
     addFoodToTracker, removeFoodFromTracker,
     addMealToPlan, removeMealFromPlan, autoGeneratePlan,
-    getDayTotals, getMealTotals, getWeekTotals,
+    getDayTotals, getMealTotals, getWeekTotals, getMealTarget,
     weightLog, addWeight, removeWeight,
     calculateTDEE, calculateMacros, calculateBMR,
     ACTIVITY_MULTIPLIERS,

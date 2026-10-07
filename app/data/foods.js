@@ -33,6 +33,14 @@ export const FOODS_DB = [
   { id: 17, name: 'Pulpo', category: 'proteins', cal: 82, protein: 15, carbs: 2, fat: 1, fiber: 0 },
   { id: 18, name: 'Pechuga de pollo empanada', category: 'proteins', cal: 220, protein: 22, carbs: 12, fat: 10, fiber: 0.5 },
   { id: 19, name: 'Jamón serrano', category: 'proteins', cal: 241, protein: 31, carbs: 0, fat: 13, fiber: 0 },
+  { id: 220, name: 'Salmón ahumado', category: 'proteins', cal: 117, protein: 18, carbs: 0, fat: 4.3, fiber: 0 },
+  { id: 221, name: 'Jamón york/cocido', category: 'proteins', cal: 107, protein: 18, carbs: 1.5, fat: 3.5, fiber: 0 },
+  { id: 222, name: 'Pavo (fiambre)', category: 'proteins', cal: 104, protein: 17, carbs: 1.5, fat: 3, fiber: 0 },
+  { id: 223, name: 'Caballa', category: 'proteins', cal: 205, protein: 19, carbs: 0, fat: 14, fiber: 0 },
+  { id: 224, name: 'Mejillones', category: 'proteins', cal: 86, protein: 12, carbs: 3.7, fat: 2.2, fiber: 0 },
+  { id: 225, name: 'Solomillo de ternera', category: 'proteins', cal: 158, protein: 21, carbs: 0, fat: 8, fiber: 0 },
+  { id: 226, name: 'Chorizo', category: 'proteins', cal: 455, protein: 24, carbs: 2, fat: 38, fiber: 0 },
+  { id: 227, name: 'Bonito del norte (lata)', category: 'proteins', cal: 128, protein: 23, carbs: 0, fat: 4, fiber: 0 },
 
   // Carbohidratos
   { id: 20, name: 'Arroz blanco (cocido)', category: 'carbs', cal: 130, protein: 2.7, carbs: 28, fat: 0.3, fiber: 0.4 },
@@ -140,6 +148,11 @@ export const FOODS_DB = [
   { id: 116, name: 'Nata', category: 'dairy', cal: 340, protein: 2, carbs: 3, fat: 36, fiber: 0 },
   { id: 117, name: 'Mantequilla', category: 'dairy', cal: 717, protein: 0.9, carbs: 0.1, fat: 81, fiber: 0 },
   { id: 118, name: 'Bebida de avena', category: 'dairy', cal: 43, protein: 1, carbs: 7, fat: 1.5, fiber: 0.8 },
+  { id: 230, name: 'Queso crema/untable', category: 'dairy', cal: 253, protein: 6, carbs: 4, fat: 24, fiber: 0 },
+  { id: 231, name: 'Queso cheddar', category: 'dairy', cal: 402, protein: 25, carbs: 1.3, fat: 33, fiber: 0 },
+  { id: 232, name: 'Queso en lonchas', category: 'dairy', cal: 300, protein: 18, carbs: 6, fat: 23, fiber: 0 },
+  { id: 233, name: 'Queso parmesano', category: 'dairy', cal: 431, protein: 38, carbs: 4, fat: 29, fiber: 0 },
+  { id: 234, name: 'Queso burgos/batido', category: 'dairy', cal: 90, protein: 8, carbs: 4, fat: 5, fiber: 0 },
 
   // Cereales y legumbres
   { id: 120, name: 'Lentejas (cocidas)', category: 'grains', cal: 116, protein: 9, carbs: 20, fat: 0.4, fiber: 8 },
@@ -281,3 +294,48 @@ export const DAYS_SHORT = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 export const MEALS = ['breakfast', 'lunch', 'dinner', 'snack']
 export const MEAL_LABELS = { breakfast: 'Desayuno', lunch: 'Almuerzo', dinner: 'Cena', snack: 'Snack' }
 export const MEAL_ICONS = { breakfast: '🌅', lunch: '☀️', dinner: '🌙', snack: '🍪' }
+
+// Reparto de calorías/macros por comida según el objetivo.
+// Cada objetivo suma 1.0 entre las 4 comidas. En volumen el snack pesa más
+// (comidas extra), en déficit se concentra en comidas principales.
+export const MEAL_SPLIT = {
+  deficit:     { breakfast: 0.25, lunch: 0.35, dinner: 0.30, snack: 0.10 },
+  maintenance: { breakfast: 0.25, lunch: 0.35, dinner: 0.28, snack: 0.12 },
+  bulk:        { breakfast: 0.25, lunch: 0.32, dinner: 0.28, snack: 0.15 },
+}
+
+export function getGoalKey(goal) {
+  return goal === 'bulk' ? 'bulk' : goal === 'deficit' ? 'deficit' : 'maintenance'
+}
+
+// Calcula los totales (cal + macros + gramos) de una lista de ingredientes
+// [{ id, grams }] resolviendo contra FOODS_DB (que está en valores por 100g).
+export function computeFoodsTotals(foods) {
+  let cal = 0, protein = 0, carbs = 0, fat = 0, grams = 0
+  ;(foods || []).forEach(f => {
+    const food = FOODS_DB.find(fd => fd.id === f.id)
+    if (!food) return
+    const factor = (f.grams || 0) / 100
+    cal += food.cal * factor
+    protein += food.protein * factor
+    carbs += food.carbs * factor
+    fat += food.fat * factor
+    grams += f.grams || 0
+  })
+  return {
+    cal: Math.round(cal),
+    protein: Math.round(protein * 10) / 10,
+    carbs: Math.round(carbs * 10) / 10,
+    fat: Math.round(fat * 10) / 10,
+    grams: Math.round(grams),
+  }
+}
+
+// Escala las porciones de una lista de ingredientes por un factor, redondeando
+// a 5g para que las cantidades queden "limpias".
+export function scaleFoods(foods, factor) {
+  return (foods || []).map(f => ({
+    ...f,
+    grams: Math.max(5, Math.round((f.grams || 0) * factor / 5) * 5),
+  }))
+}

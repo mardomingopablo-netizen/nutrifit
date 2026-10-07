@@ -9,7 +9,7 @@ export default function PlanPage() {
   const {
     profile, weekPlan, targetCalories, targetMacros,
     addMealToPlan, removeMealFromPlan, autoGeneratePlan,
-    getDayTotals,
+    getDayTotals, getMealTotals, getMealTarget,
   } = useApp()
 
   const [selectedDay, setSelectedDay] = useState(0)
@@ -89,13 +89,22 @@ export default function PlanPage() {
       {MEALS.map(meal => {
         const items = weekPlan[day]?.[meal] || []
         const mealSuggs = suggestions[meal] || []
+        const mealTotals = getMealTotals(day, meal, 'plan')
+        const mealTarget = getMealTarget(meal)
+        const mealOver = mealTotals.cal > mealTarget.cal * 1.05
 
         return (
           <div key={meal} className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
               <div className="flex items-center gap-3">
                 <span className="text-xl">{MEAL_ICONS[meal]}</span>
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{MEAL_LABELS[meal]}</h3>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{MEAL_LABELS[meal]}</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <span className={mealOver ? 'text-red-500 font-medium' : 'text-gray-700 dark:text-gray-300 font-medium'}>{mealTotals.cal}</span>
+                    <span className="text-gray-400"> / {mealTarget.cal} kcal objetivo</span>
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -115,7 +124,10 @@ export default function PlanPage() {
                     <div className="flex items-center gap-3">
                       <div className="flex-1">
                         <p className="text-sm font-medium text-gray-900 dark:text-white">{item.name}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">{item.cal} kcal</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {item.cal} kcal
+                          {item.protein !== undefined && ` · P:${item.protein}g · C:${item.carbs}g · G:${item.fat}g`}
+                        </p>
                       </div>
                       <button
                         onClick={() => removeMealFromPlan(day, meal, item.id)}

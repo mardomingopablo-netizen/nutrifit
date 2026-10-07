@@ -11,7 +11,7 @@ export default function TrackerPage() {
   const {
     tracker, currentDay, setCurrentDay,
     addFoodToTracker, removeFoodFromTracker,
-    getDayTotals, getMealTotals,
+    getDayTotals, getMealTotals, getMealTarget,
     targetCalories, targetMacros,
   } = useApp()
 
@@ -72,6 +72,9 @@ export default function TrackerPage() {
       {MEALS.map(meal => {
         const foods = tracker[day]?.[meal] || []
         const mealTotals = getMealTotals(day, meal)
+        const mealTarget = getMealTarget(meal)
+        const mealPct = mealTarget.cal > 0 ? Math.min((mealTotals.cal / mealTarget.cal) * 100, 100) : 0
+        const mealOver = mealTotals.cal > mealTarget.cal
         const expanded = expandedMeals[meal]
 
         return (
@@ -79,20 +82,31 @@ export default function TrackerPage() {
             {/* Meal header */}
             <button
               onClick={() => toggleMeal(meal)}
-              className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all"
+              className="w-full px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all"
             >
-              <div className="flex items-center gap-3">
-                <span className="text-xl">{MEAL_ICONS[meal]}</span>
-                <div className="text-left">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">{MEAL_LABELS[meal]}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {mealTotals.cal} kcal · P:{mealTotals.protein}g · C:{mealTotals.carbs}g · G:{mealTotals.fat}g
-                  </p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">{MEAL_ICONS[meal]}</span>
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">{MEAL_LABELS[meal]}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <span className={mealOver ? 'text-red-500 font-medium' : 'text-gray-700 dark:text-gray-300 font-medium'}>{mealTotals.cal}</span>
+                      <span className="text-gray-400"> / {mealTarget.cal} kcal</span>
+                      <span className="hidden sm:inline"> · P:{mealTotals.protein}/{mealTarget.protein}g · C:{mealTotals.carbs}/{mealTarget.carbs}g · G:{mealTotals.fat}/{mealTarget.fat}g</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-gray-400">{foods.length} item{foods.length !== 1 ? 's' : ''}</span>
+                  {expanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-400">{foods.length} item{foods.length !== 1 ? 's' : ''}</span>
-                {expanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+              {/* Per-meal progress bar */}
+              <div className="mt-2.5 h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${mealOver ? 'bg-red-500' : mealPct > 85 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                  style={{ width: `${Math.max(mealPct, mealTotals.cal > 0 ? 4 : 0)}%` }}
+                />
               </div>
             </button>
 
