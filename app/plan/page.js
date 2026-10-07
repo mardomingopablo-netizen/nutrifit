@@ -12,6 +12,7 @@ export default function PlanPage() {
   const {
     profile, weekPlan, targetCalories, targetMacros,
     addMealToPlan, removeMealFromPlan, autoGeneratePlan, updatePlanFoodGrams, scalePlanMealPortion,
+    scalePlanIngredient, removePlanIngredient,
     getDayTotals, getMealTotals, getMealTarget,
   } = useApp()
 
@@ -239,19 +240,42 @@ export default function PlanPage() {
                         <Trash2 size={14} />
                       </button>
                     </div>
-                    {/* Ingredient breakdown (sugerencias) */}
+                    {/* Ingredient breakdown con controles por ingrediente */}
                     {foodDetails.length > 0 && (
                       <div className="mt-2 ml-1 space-y-1">
                         {foodDetails.map((food, idx) => (
-                          <div key={idx} className="flex items-center justify-between bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-1.5">
-                            <div className="flex items-center gap-2">
+                          <div key={idx} className="flex items-center justify-between gap-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-1.5">
+                            <div className="flex items-center gap-2 min-w-0">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                              <span className="text-xs text-gray-700 dark:text-gray-300">{food.name}</span>
-                              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">{food.grams}g</span>
+                              <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{food.name}</span>
+                              <span className="text-[10px] text-gray-400 whitespace-nowrap hidden sm:inline">
+                                {Math.round(food.cal * food.grams / 100)} kcal
+                              </span>
                             </div>
-                            <span className="text-[10px] text-gray-400 whitespace-nowrap">
-                              {Math.round(food.cal * food.grams / 100)} kcal
-                            </span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={() => scalePlanIngredient(day, meal, item.id, idx, 0.9)}
+                                className="w-6 h-6 flex items-center justify-center rounded-md bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 transition-all border border-gray-200 dark:border-gray-600"
+                                title="Menos"
+                              >
+                                <Minus size={12} />
+                              </button>
+                              <span className="w-11 text-center text-xs font-semibold text-emerald-600 dark:text-emerald-400">{food.grams}g</span>
+                              <button
+                                onClick={() => scalePlanIngredient(day, meal, item.id, idx, 1.1)}
+                                className="w-6 h-6 flex items-center justify-center rounded-md bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 transition-all border border-gray-200 dark:border-gray-600"
+                                title="Más"
+                              >
+                                <PlusIcon size={12} />
+                              </button>
+                              <button
+                                onClick={() => removePlanIngredient(day, meal, item.id, idx)}
+                                className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all"
+                                title="Quitar ingrediente"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>

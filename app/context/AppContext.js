@@ -324,6 +324,60 @@ export function AppProvider({ children }) {
     }))
   }, [])
 
+  // Cambia los gramos de UN ingrediente dentro de una comida del plan y
+  // recalcula los macros de la comida (p. ej. bajar aguacate, subir pavo).
+  const updatePlanIngredientGrams = useCallback((day, meal, itemId, idx, grams) => {
+    const g = Math.max(5, Math.round(Number(grams) || 0))
+    setWeekPlan(prev => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        [meal]: (prev[day]?.[meal] || []).map(it => {
+          if (it.id !== itemId || !it.foods) return it
+          const newFoods = it.foods.map((f, i) => i === idx ? { ...f, grams: g } : f)
+          const t = computeFoodsTotals(newFoods)
+          return { ...it, foods: newFoods, cal: t.cal, protein: t.protein, carbs: t.carbs, fat: t.fat }
+        }),
+      },
+    }))
+  }, [])
+
+  // Escala un ingrediente por factor (±10%), redondeando a 5g.
+  const scalePlanIngredient = useCallback((day, meal, itemId, idx, factor) => {
+    setWeekPlan(prev => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        [meal]: (prev[day]?.[meal] || []).map(it => {
+          if (it.id !== itemId || !it.foods) return it
+          const newFoods = it.foods.map((f, i) => i === idx
+            ? { ...f, grams: Math.max(5, Math.round(((f.grams || 0) * factor) / 5) * 5) }
+            : f)
+          const t = computeFoodsTotals(newFoods)
+          return { ...it, foods: newFoods, cal: t.cal, protein: t.protein, carbs: t.carbs, fat: t.fat }
+        }),
+      },
+    }))
+  }, [])
+
+  // Quita un ingrediente de una comida del plan. Si era el último, elimina la
+  // comida entera.
+  const removePlanIngredient = useCallback((day, meal, itemId, idx) => {
+    setWeekPlan(prev => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        [meal]: (prev[day]?.[meal] || []).flatMap(it => {
+          if (it.id !== itemId || !it.foods) return [it]
+          const newFoods = it.foods.filter((_, i) => i !== idx)
+          if (newFoods.length === 0) return []
+          const t = computeFoodsTotals(newFoods)
+          return [{ ...it, foods: newFoods, cal: t.cal, protein: t.protein, carbs: t.carbs, fat: t.fat }]
+        }),
+      },
+    }))
+  }, [])
+
   const autoGeneratePlan = useCallback(() => {
     const goal = getGoalKey(profile.goal)
     const suggestions = MEAL_SUGGESTIONS[goal]
@@ -627,6 +681,7 @@ export function AppProvider({ children }) {
     targetCalories, targetMacros,
     addFoodToTracker, removeFoodFromTracker, updateFoodGrams,
     addMealToPlan, removeMealFromPlan, autoGeneratePlan, updatePlanFoodGrams, scalePlanMealPortion,
+    updatePlanIngredientGrams, scalePlanIngredient, removePlanIngredient,
     getDayTotals, getMealTotals, getWeekTotals, getRangeTotals, getMealTarget,
     todayKey,
     weightLog, addWeight, removeWeight,
