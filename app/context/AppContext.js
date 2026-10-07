@@ -302,6 +302,28 @@ export function AppProvider({ children }) {
     }))
   }, [])
 
+  // Escala las porciones de una comida del plan por un factor (p. ej. 1.1 para
+  // +10%, 0.9 para -10%). Sirve tanto para comidas con ingredientes (escala
+  // cada ingrediente y recalcula macros) como para alimentos individuales.
+  const scalePlanMealPortion = useCallback((day, meal, itemId, factor) => {
+    setWeekPlan(prev => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        [meal]: (prev[day]?.[meal] || []).map(it => {
+          if (it.id !== itemId) return it
+          if (it.foods) {
+            const newFoods = scaleFoods(it.foods, factor)
+            const t = computeFoodsTotals(newFoods)
+            return { ...it, foods: newFoods, cal: t.cal, protein: t.protein, carbs: t.carbs, fat: t.fat }
+          }
+          const newG = Math.max(5, Math.round(((it.grams || 100) * factor) / 5) * 5)
+          return { ...it, grams: newG }
+        }),
+      },
+    }))
+  }, [])
+
   const autoGeneratePlan = useCallback(() => {
     const goal = getGoalKey(profile.goal)
     const suggestions = MEAL_SUGGESTIONS[goal]
@@ -449,17 +471,28 @@ export function AppProvider({ children }) {
   }
 
   // ─── TOTALS ───
+  // Suma los macros de una entrada. Si es una comida con ingredientes (.foods),
+  // los calcula desde ellos (robusto incluso con datos antiguos); si es un
+  // alimento individual, usa sus valores por 100g × gramos.
+  function entryTotals(entry) {
+    if (entry.foods) return computeFoodsTotals(entry.foods)
+    const g = (entry.grams || 100) / 100
+    return {
+      cal: (entry.cal || 0) * g,
+      protein: (entry.protein || 0) * g,
+      carbs: (entry.carbs || 0) * g,
+      fat: (entry.fat || 0) * g,
+    }
+  }
+
   const getDayTotals = useCallback((day, source = 'tracker') => {
     const data = source === 'tracker' ? tracker : weekPlan
     const dayData = data[day] || {}
     let cal = 0, protein = 0, carbs = 0, fat = 0
     MEALS.forEach(meal => {
       (dayData[meal] || []).forEach(food => {
-        const g = (food.grams || 100) / 100
-        cal += (food.cal || 0) * g
-        protein += (food.protein || 0) * g
-        carbs += (food.carbs || 0) * g
-        fat += (food.fat || 0) * g
+        const t = entryTotals(food)
+        cal += t.cal; protein += t.protein; carbs += t.carbs; fat += t.fat
       })
     })
     return { cal: Math.round(cal), protein: Math.round(protein), carbs: Math.round(carbs), fat: Math.round(fat) }
@@ -470,11 +503,8 @@ export function AppProvider({ children }) {
     const foods = data[day]?.[meal] || []
     let cal = 0, protein = 0, carbs = 0, fat = 0
     foods.forEach(food => {
-      const g = (food.grams || 100) / 100
-      cal += (food.cal || 0) * g
-      protein += (food.protein || 0) * g
-      carbs += (food.carbs || 0) * g
-      fat += (food.fat || 0) * g
+      const t = entryTotals(food)
+      cal += t.cal; protein += t.protein; carbs += t.carbs; fat += t.fat
     })
     return { cal: Math.round(cal), protein: Math.round(protein), carbs: Math.round(carbs), fat: Math.round(fat) }
   }, [tracker, weekPlan])
@@ -596,7 +626,7 @@ export function AppProvider({ children }) {
     currentDay, setCurrentDay,
     targetCalories, targetMacros,
     addFoodToTracker, removeFoodFromTracker, updateFoodGrams,
-    addMealToPlan, removeMealFromPlan, autoGeneratePlan, updatePlanFoodGrams,
+    addMealToPlan, removeMealFromPlan, autoGeneratePlan, updatePlanFoodGrams, scalePlanMealPortion,
     getDayTotals, getMealTotals, getWeekTotals, getRangeTotals, getMealTarget,
     todayKey,
     weightLog, addWeight, removeWeight,

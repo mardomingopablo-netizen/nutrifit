@@ -1,17 +1,17 @@
 'use client'
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
-import { DAYS, DAYS_SHORT, MEALS, MEAL_LABELS, MEAL_ICONS, MEAL_SUGGESTIONS, FOODS_DB, getGoalKey } from '../data/foods'
+import { DAYS, DAYS_SHORT, MEALS, MEAL_LABELS, MEAL_ICONS, MEAL_SUGGESTIONS, FOODS_DB, getGoalKey, computeFoodsTotals } from '../data/foods'
 import FoodSearch from '../components/FoodSearch'
 import CalorieBar from '../components/CalorieBar'
-import { Wand2, Trash2, Plus, ChevronLeft, ChevronRight, Search, Sparkles } from 'lucide-react'
+import { Wand2, Trash2, ChevronLeft, ChevronRight, Search, Sparkles, Minus, Plus as PlusIcon } from 'lucide-react'
 
 const GOAL_LABELS = { deficit: 'definición', maintenance: 'mantenimiento', bulk: 'volumen' }
 
 export default function PlanPage() {
   const {
     profile, weekPlan, targetCalories, targetMacros,
-    addMealToPlan, removeMealFromPlan, autoGeneratePlan, updatePlanFoodGrams,
+    addMealToPlan, removeMealFromPlan, autoGeneratePlan, updatePlanFoodGrams, scalePlanMealPortion,
     getDayTotals, getMealTotals, getMealTarget,
   } = useApp()
 
@@ -34,9 +34,11 @@ export default function PlanPage() {
     addMealToPlan(day, meal, food)
   }
 
-  // Total efectivo de un item del plan (suma como en getDayTotals):
-  // alimento individual = por-100g × gramos; sugerencia = totales tal cual.
+  // Total efectivo de un item del plan. Las comidas con ingredientes se
+  // calculan desde ellos (robusto incluso con datos antiguos a 0); los
+  // alimentos individuales usan sus valores por 100g × gramos.
   function itemTotals(item) {
+    if (item.foods) return computeFoodsTotals(item.foods)
     const factor = item.grams ? item.grams / 100 : 1
     return {
       cal: Math.round((item.cal || 0) * factor),
@@ -202,19 +204,34 @@ export default function PlanPage() {
                           {t.cal} kcal · P:{t.protein}g · C:{t.carbs}g · G:{t.fat}g
                         </p>
                       </div>
-                      {/* Gramos editables para alimentos individuales */}
-                      {isFood && (
-                        <div className="flex items-center gap-1 shrink-0">
+                      {/* Controles de porción: −10% / +10% */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => scalePlanMealPortion(day, meal, item.id, 0.9)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
+                          title="Menos cantidad"
+                        >
+                          <Minus size={14} />
+                        </button>
+                        {isFood ? (
                           <input
                             type="number"
                             value={item.grams || 100}
                             min={1}
                             onChange={e => updatePlanFoodGrams(day, meal, item.id, e.target.value)}
-                            className="w-16 px-2 py-1.5 text-xs text-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white border-none outline-none"
+                            className="w-14 px-1 py-1.5 text-xs text-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white border-none outline-none"
                           />
-                          <span className="text-xs text-gray-400">g</span>
-                        </div>
-                      )}
+                        ) : (
+                          <span className="w-10 text-center text-xs font-medium text-gray-500 dark:text-gray-400">{t.cal}</span>
+                        )}
+                        <button
+                          onClick={() => scalePlanMealPortion(day, meal, item.id, 1.1)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
+                          title="Más cantidad"
+                        >
+                          <PlusIcon size={14} />
+                        </button>
+                      </div>
                       <button
                         onClick={() => removeMealFromPlan(day, meal, item.id)}
                         className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all shrink-0"

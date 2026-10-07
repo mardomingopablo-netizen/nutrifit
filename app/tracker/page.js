@@ -5,7 +5,7 @@ import { MEALS, MEAL_LABELS, MEAL_ICONS } from '../data/foods'
 import FoodSearch from '../components/FoodSearch'
 import CalorieBar from '../components/CalorieBar'
 import MacroRing from '../components/MacroRing'
-import { Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronUp, Minus, Plus as PlusIcon } from 'lucide-react'
 
 export default function TrackerPage() {
   const {
@@ -110,16 +110,29 @@ export default function TrackerPage() {
                             {Math.round(food.cal * g / 100)} kcal · P:{Math.round(food.protein * g / 100)}g · C:{Math.round(food.carbs * g / 100)}g · G:{Math.round(food.fat * g / 100)}g
                           </p>
                         </div>
-                        {/* Editable grams */}
+                        {/* Editable grams con botones -/+ */}
                         <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => updateFoodGrams(meal, food.id, Math.max(5, Math.round(g * 0.9 / 5) * 5))}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
+                            title="Menos cantidad"
+                          >
+                            <Minus size={14} />
+                          </button>
                           <input
                             type="number"
                             value={g}
                             min={1}
                             onChange={e => updateFoodGrams(meal, food.id, e.target.value)}
-                            className="w-16 px-2 py-1.5 text-xs text-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white border-none outline-none"
+                            className="w-14 px-1 py-1.5 text-xs text-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white border-none outline-none"
                           />
-                          <span className="text-xs text-gray-400">g</span>
+                          <button
+                            onClick={() => updateFoodGrams(meal, food.id, Math.max(5, Math.round(g * 1.1 / 5) * 5))}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
+                            title="Más cantidad"
+                          >
+                            <PlusIcon size={14} />
+                          </button>
                         </div>
                         <button
                           onClick={() => removeFoodFromTracker(meal, food.id)}
