@@ -3,6 +3,7 @@ import { createContext, useContext, useState, useCallback, useEffect, useMemo } 
 import { DAYS, MEALS, MEAL_SUGGESTIONS, MEAL_SPLIT, getGoalKey, computeFoodsTotals, scaleFoods } from '../data/foods'
 import { SUPPLEMENTS_DB } from '../data/supplements'
 import { useAuth } from './AuthContext'
+import { supabase } from '../lib/supabase'
 
 const AppContext = createContext()
 
@@ -168,56 +169,108 @@ export function AppProvider({ children }) {
     }
   }, [profile.goal, targetCalories, targetMacros])
 
-  // ─── Carga por usuario ───
-  // Cada usuario guarda sus datos en su propia clave (ps_data_v2_<id>), así
-  // que al cerrar e iniciar sesión cada cuenta recupera lo suyo y nadie pisa
-  // los datos de otro. Al cambiar de usuario se reinicia el estado al de esa
-  // cuenta (o a valores por defecto si es nueva).
-  useEffect(() => {
-    if (!userId) return
-    setHydrated(false)
-    let data = null
+  // Aplica un bloque de datos al estado (o valores por defecto si es null).
+  function applyData(d) {
+    setProfile(d?.profile || DEFAULT_PROFILE)
+    setTracker(normalizeTracker(d?.tracker))
+    setWeekPlan(d?.weekPlan || createEmptyWeek())
+    setWeightLog(d?.weightLog || [])
+    setRecipes(d?.recipes || [])
+    setSupplements(d?.supplements || createEmptySupplements())
+    setMySupplements(d?.mySupplements || [])
+    setStreakData(d?.streakData || { currentStreak: 0, bestStreak: 0, loggedDays: [] })
+    setUnlockedAchievements(d?.unlockedAchievements || [])
+    setPhotoEstimates(d?.photoEstimates || [])
+    setProfileHistory(d?.profileHistory || [])
+    setExerciseHistory(d?.exerciseHistory || [])
+  }
+
+  // Busca datos guardados en el navegador de una versión anterior (local), para
+  // migrarlos a la nube la primera vez.
+  function findLegacyLocalData() {
     try {
-      const raw = localStorage.getItem(`ps_data_v2_${userId}`)
-      if (raw) {
-        data = JSON.parse(raw)
-      } else {
-        // Migración única: los datos antiguos globales pasan al PRIMER
-        // usuario que inicie sesión tras la actualización.
-        const legacy = localStorage.getItem('ps_data_v2')
-        if (legacy && !localStorage.getItem('ps_legacy_migrated')) {
-          data = JSON.parse(legacy)
-          localStorage.setItem('ps_legacy_migrated', '1')
+      const legacy = localStorage.getItem('ps_data_v2')
+      if (legacy) return JSON.parse(legacy)
+      let newest = null
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)
+        if (k && k.startsWith('ps_data_v2_')) {
+          const v = JSON.parse(localStorage.getItem(k))
+          if (v) newest = v
         }
       }
+      return newest
+    } catch { return null }
+  }
+
+  // ─── Carga desde la nube (Supabase) ───
+  // Los datos viven en la nube por usuario, así que al iniciar sesión en
+  // cualquier dispositivo o en la app instalada aparece todo lo del usuario.
+  // Se usa una caché local para pintar rápido y funcionar sin conexión.
+  useEffect(() => {
+    if (!userId) return
+    let cancelled = false
+    setHydrated(false)
+
+    // 1) Pintar al instante desde la caché local, si existe.
+    let appliedFromCache = false
+    try {
+      const cache = localStorage.getItem('cloud_cache_' + userId)
+      if (cache) { applyData(JSON.parse(cache)); appliedFromCache = true }
     } catch {}
 
-    setProfile(data?.profile || DEFAULT_PROFILE)
-    setTracker(normalizeTracker(data?.tracker))
-    setWeekPlan(data?.weekPlan || createEmptyWeek())
-    setWeightLog(data?.weightLog || [])
-    setRecipes(data?.recipes || [])
-    setSupplements(data?.supplements || createEmptySupplements())
-    setMySupplements(data?.mySupplements || [])
-    setStreakData(data?.streakData || { currentStreak: 0, bestStreak: 0, loggedDays: [] })
-    setUnlockedAchievements(data?.unlockedAchievements || [])
-    setPhotoEstimates(data?.photoEstimates || [])
-    setProfileHistory(data?.profileHistory || [])
-    setExerciseHistory(data?.exerciseHistory || [])
-    setHydrated(true)
+    // 2) Traer la versión real de la nube.
+    ;(async () => {
+      let cloudData = null
+      try {
+        const { data, error } = await supabase
+          .from('user_data').select('data').eq('user_id', userId).maybeSingle()
+        if (!error && data && data.data && Object.keys(data.data).length > 0) {
+          cloudData = data.data
+        }
+        if (!cancelled && !error) {
+          if (cloudData) {
+            applyData(cloudData)
+            try { localStorage.setItem('cloud_cache_' + userId, JSON.stringify(cloudData)) } catch {}
+          } else if (!appliedFromCache) {
+            // Cuenta nueva en la nube: intentar migrar datos locales antiguos.
+            const legacy = findLegacyLocalData()
+            if (legacy) {
+              applyData(legacy)
+              try { await supabase.from('user_data').upsert({ user_id: userId, data: legacy, updated_at: new Date().toISOString() }) } catch {}
+              try { localStorage.setItem('cloud_cache_' + userId, JSON.stringify(legacy)) } catch {}
+            } else {
+              applyData(null)
+            }
+          }
+        }
+      } catch {
+        // Sin conexión: nos quedamos con la caché (o por defecto).
+        if (!appliedFromCache && !cancelled) applyData(null)
+      } finally {
+        if (!cancelled) setHydrated(true)
+      }
+    })()
+
+    return () => { cancelled = true }
   }, [userId])
 
-  // ─── Guardado por usuario ───
-  // Solo guardamos tras cargar (hydrated) para no pisar los datos del usuario
-  // con los valores por defecto del primer render.
+  // ─── Guardado en la nube (Supabase) + caché local ───
+  // Solo tras cargar (hydrated). Guarda en caché al instante y sube a la nube
+  // con un pequeño retardo para no saturar en cada tecla.
   useEffect(() => {
     if (!hydrated || !userId) return
-    try {
-      localStorage.setItem(`ps_data_v2_${userId}`, JSON.stringify({
-        profile, tracker, weekPlan, weightLog, recipes,
-        supplements, mySupplements, streakData, unlockedAchievements, photoEstimates, profileHistory, exerciseHistory,
-      }))
-    } catch {}
+    const blob = {
+      profile, tracker, weekPlan, weightLog, recipes,
+      supplements, mySupplements, streakData, unlockedAchievements, photoEstimates, profileHistory, exerciseHistory,
+    }
+    try { localStorage.setItem('cloud_cache_' + userId, JSON.stringify(blob)) } catch {}
+    const t = setTimeout(() => {
+      supabase.from('user_data')
+        .upsert({ user_id: userId, data: blob, updated_at: new Date().toISOString() })
+        .then(() => {}, () => {})
+    }, 1200)
+    return () => clearTimeout(t)
   }, [hydrated, userId, profile, tracker, weekPlan, weightLog, recipes, supplements, mySupplements, streakData, unlockedAchievements, photoEstimates, profileHistory, exerciseHistory])
 
   // ─── TRACKER (por fecha) ───

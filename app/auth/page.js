@@ -14,9 +14,12 @@ export default function AuthPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  function handleSubmit(e) {
+  const [info, setInfo] = useState('')
+
+  async function handleSubmit(e) {
     e.preventDefault()
     setError('')
+    setInfo('')
     setLoading(true)
 
     if (mode === 'register') {
@@ -25,8 +28,8 @@ export default function AuthPage() {
         setLoading(false)
         return
       }
-      if (password.length < 4) {
-        setError('La contraseña debe tener al menos 4 caracteres')
+      if (password.length < 6) {
+        setError('La contraseña debe tener al menos 6 caracteres')
         setLoading(false)
         return
       }
@@ -35,13 +38,18 @@ export default function AuthPage() {
         setLoading(false)
         return
       }
-      const result = register(name.trim(), email.trim().toLowerCase(), password)
+      const result = await register(name.trim(), email.trim().toLowerCase(), password)
       if (!result.ok) {
         setError(result.error)
         setLoading(false)
+      } else if (result.needsConfirmation) {
+        setInfo('Cuenta creada. Revisa tu email para confirmar la cuenta y luego inicia sesión.')
+        setMode('login')
+        setLoading(false)
       }
+      // Si ok y hay sesión, el AuthGuard muestra la app automáticamente.
     } else {
-      const result = login(email.trim().toLowerCase(), password)
+      const result = await login(email.trim().toLowerCase(), password)
       if (!result.ok) {
         setError(result.error)
         setLoading(false)
@@ -52,6 +60,7 @@ export default function AuthPage() {
   function switchMode() {
     setMode(mode === 'login' ? 'register' : 'login')
     setError('')
+    setInfo('')
     setName('')
     setPassword('')
     setConfirmPassword('')
@@ -79,6 +88,12 @@ export default function AuthPage() {
           {error && (
             <div className="mb-4 px-4 py-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl text-sm text-red-700 dark:text-red-400">
               {error}
+            </div>
+          )}
+
+          {info && (
+            <div className="mb-4 px-4 py-3 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-xl text-sm text-emerald-700 dark:text-emerald-400">
+              {info}
             </div>
           )}
 
