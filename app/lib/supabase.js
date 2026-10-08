@@ -14,6 +14,8 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: false,
+    // Al volver desde el enlace de confirmación del email, recoge la sesión de
+    // la URL y deja al usuario dentro automáticamente.
+    detectSessionInUrl: true,
   },
 })

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nutrifit-v3'
+const CACHE_NAME = 'nutrifit-v4'
 
 self.addEventListener('install', () => {
   // Activa el nuevo SW inmediatamente, sin esperar.

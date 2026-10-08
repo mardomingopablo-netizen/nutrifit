@@ -45,10 +45,11 @@ export function AuthProvider({ children }) {
 
   const register = useCallback(async (name, email, password) => {
     try {
+      const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { name } },
+        options: { data: { name }, emailRedirectTo: redirectTo },
       })
       if (error) return { ok: false, error: translateError(error.message) }
 
