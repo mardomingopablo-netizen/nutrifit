@@ -1,48 +1,55 @@
-const CACHE_NAME = 'nutrifit-v2'
-const STATIC_ASSETS = [
-  '/',
-  '/tracker',
-  '/plan',
-  '/calculator',
-  '/progress',
-  '/exercise',
-  '/recipes',
-  '/supplements',
-  '/foods',
-  '/photo',
-  '/streaks',
-]
+const CACHE_NAME = 'nutrifit-v3'
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS).catch(() => {})
-    })
-  )
+self.addEventListener('install', () => {
+  // Activa el nuevo SW inmediatamente, sin esperar.
   self.skipWaiting()
 })
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
   )
-  self.clients.claim()
 })
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return
+  const req = event.request
+  if (req.method !== 'GET') return
 
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        const clone = response.clone()
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, clone).catch(() => {})
+  let url
+  try { url = new URL(req.url) } catch { return }
+
+  // No interceptamos la API ni peticiones a otros dominios.
+  if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return
+
+  // Navegaciones (abrir una página): SIEMPRE red primero, así nunca se queda
+  // una versión antigua rota. Si no hay red, usa la última guardada.
+  if (req.mode === 'navigate') {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          const clone = res.clone()
+          caches.open(CACHE_NAME).then((c) => c.put(req, clone).catch(() => {}))
+          return res
         })
-        return response
+        .catch(() => caches.match(req).then((r) => r || caches.match('/')))
+    )
+    return
+  }
+
+  // Recursos estáticos (JS/CSS/imágenes con hash): caché primero, rápido y
+  // válido offline. Solo se cachea si la respuesta es correcta.
+  event.respondWith(
+    caches.match(req).then((cached) => {
+      if (cached) return cached
+      return fetch(req).then((res) => {
+        if (res && res.ok && res.type === 'basic') {
+          const clone = res.clone()
+          caches.open(CACHE_NAME).then((c) => c.put(req, clone).catch(() => {}))
+        }
+        return res
       })
-      .catch(() => caches.match(event.request))
+    })
   )
 })
