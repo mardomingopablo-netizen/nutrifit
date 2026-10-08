@@ -45,26 +45,20 @@ export function AuthProvider({ children }) {
 
   const register = useCallback(async (name, email, password) => {
     try {
-      const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { name }, emailRedirectTo: redirectTo },
+      // Crea el usuario ya confirmado desde el servidor (sin email) y además
+      // lo registra en Google Sheets.
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password }),
       })
-      if (error) return { ok: false, error: translateError(error.message) }
-
-      // Registro en Google Sheets (best-effort, no bloquea)
-      try {
-        const now = new Date()
-        const fecha = encodeURIComponent(now.toLocaleDateString('es-ES') + ' ' + now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }))
-        const url = `https://script.google.com/macros/s/AKfycbxy6YsFxBn-3p-_2XzFBusUxpr6A8B108uXn7LdXVex_PBowxXtcM4fEJuWvGpYOSG5/exec?fecha=${fecha}&nombre=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}`
-        fetch(url, { mode: 'no-cors' })
-      } catch {}
-
-      // Si la confirmación de email está desactivada, ya hay sesión activa.
-      if (!data.session) {
-        return { ok: true, needsConfirmation: true }
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || data.error) {
+        return { ok: false, error: translateError(data.error) }
       }
+      // Cuenta creada y confirmada: iniciar sesión directamente.
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) return { ok: false, error: translateError(error.message) }
       return { ok: true }
     } catch (e) {
       return { ok: false, error: translateError(e?.message) }
