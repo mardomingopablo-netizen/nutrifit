@@ -39,7 +39,10 @@ export default function RootLayout({ children }) {
                 <Sidebar />
                 <TopBar />
                 <main className="md:ml-64 min-h-screen">
-                  <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-8 pt-20 md:pt-20">
+                  <div
+                    className="max-w-6xl mx-auto px-4 md:px-8 pb-6 md:pb-8"
+                    style={{ paddingTop: 'calc(env(safe-area-inset-top) + 5rem)' }}
+                  >
                     {children}
                   </div>
                 </main>

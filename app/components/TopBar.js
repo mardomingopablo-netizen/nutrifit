@@ -24,7 +24,11 @@ export default function TopBar() {
   if (!user) return null
 
   return (
-    <div className="fixed top-0 right-0 left-0 md:left-64 h-14 z-20 flex items-center justify-end px-4 md:px-8 bg-gray-50/80 dark:bg-gray-950/80 backdrop-blur-lg border-b border-gray-200/50 dark:border-gray-800/50">
+    <div
+      className="fixed top-0 right-0 left-0 md:left-64 z-20 bg-gray-50/80 dark:bg-gray-950/80 backdrop-blur-lg border-b border-gray-200/50 dark:border-gray-800/50"
+      style={{ paddingTop: 'env(safe-area-inset-top)' }}
+    >
+      <div className="h-14 flex items-center justify-end px-4 md:px-8">
       <div className="relative" ref={ref}>
         <button
           onClick={() => setOpen(!open)}
@@ -68,6 +72,7 @@ export default function TopBar() {
             </button>
           </div>
         )}
+      </div>
       </div>
     </div>
   )

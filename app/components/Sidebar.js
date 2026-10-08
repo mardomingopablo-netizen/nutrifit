@@ -31,7 +31,8 @@ export default function Sidebar() {
       {/* Mobile toggle */}
       <button
         onClick={() => setOpen(!open)}
-        className="fixed top-4 left-4 z-50 md:hidden p-2 rounded-xl bg-white/10 dark:bg-gray-800/80 backdrop-blur-lg border border-gray-200 dark:border-gray-700 shadow-lg"
+        style={{ top: 'calc(env(safe-area-inset-top) + 0.75rem)' }}
+        className="fixed left-4 z-50 md:hidden p-2 rounded-xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg border border-gray-200 dark:border-gray-700 shadow-lg"
       >
         {open ? <X size={20} /> : <Menu size={20} />}
       </button>
@@ -49,7 +50,7 @@ export default function Sidebar() {
         md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}
       `}>
         {/* Logo */}
-        <div className="p-6 flex items-center gap-3">
+        <div className="p-6 flex items-center gap-3" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 1.5rem)' }}>
           <img src="/logo.png?v=2" alt="NutriFit" className="w-14 h-14 rounded-xl object-cover shadow-lg shadow-emerald-500/10" />
           <div>
             <h1 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">NutriFit</h1>
