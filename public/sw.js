@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nutrifit-v1'
+const CACHE_NAME = 'nutrifit-v2'
 const STATIC_ASSETS = [
   '/',
   '/tracker',

@@ -4,9 +4,11 @@
   "description": "Trackea tu alimentación, planifica comidas y alcanza tus objetivos de fitness",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0a0a0a",
+  "background_color": "#ffffff",
   "theme_color": "#10b981",
   "orientation": "portrait-primary",
+  "categories": ["health", "fitness", "lifestyle"],
+  "lang": "es",
   "icons": [
     {
       "src": "/icons/icon-192.png",
@@ -19,6 +21,12 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

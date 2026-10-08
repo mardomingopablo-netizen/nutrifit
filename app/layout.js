@@ -23,15 +23,13 @@ export const viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: "cover",
   themeColor: "#10b981",
 }
 
 export default function RootLayout({ children }) {
   return (
     <html lang="es" className="h-full" suppressHydrationWarning>
-      <head>
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-      </head>
       <body className="min-h-full bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white antialiased" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
         <ServiceWorker />
         <ThemeProvider>
